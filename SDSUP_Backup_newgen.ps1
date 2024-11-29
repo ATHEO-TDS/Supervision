@@ -133,7 +133,7 @@ param (
 
 #region update script
 # Configuration
-$repoURL = "https://github.com/ATHEO-TDS/MyVeeamMonitoring/main"
+$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
 $scriptFileURL = "$repoURL/SDSup_Backup_newgen.ps1"
 $localScriptPath = $MyInvocation.MyCommand.Path
 
