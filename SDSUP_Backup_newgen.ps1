@@ -52,7 +52,7 @@ param (
                 [string]$scriptContent
             )
             # Recherche une ligne contenant '#Version X.Y.Z'
-            if ($scriptContent -match "#Version\s*:\s*([\d\.]+)") {
+            if ($scriptContent -match "# Version\s*:\s*([\d\.]+)") {
                 return $matches[1]
             } else {
                 Write-Error "Impossible de trouver la version dans le script."
