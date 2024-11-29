@@ -1,34 +1,54 @@
-# Définir l'URL GitHub où se trouve la version et le script
-$repoURL = "https://raw.githubusercontent.com/USER/REPO/main"
-$versionFileURL = "$repoURL/version.txt"
-$scriptFileURL = "$repoURL/script.ps1"
+# --- Configuration ---
+# URL de base du dépôt GitHub
+$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/Supervision"
+# Remplacez USER, REPO, et BRANCH par votre utilisateur, le nom du dépôt, et la branche (ex. : main).
 
-# Chemin du script local (emplacement actuel du script exécuté)
-$localScriptPath = $MyInvocation.MyCommand.Path
+# Fichiers distants
+$versionFileURL = "$repoURL/version.txt"  # Fichier contenant le numéro de version
+$scriptFileURL = "$repoURL/Test-Update.ps1"    # Le script PowerShell à télécharger
 
-# Récupérer la version distante
-try {
-    $remoteVersion = Invoke-RestMethod -Uri $versionFileURL -UseBasicParsing
-    $remoteVersion = $remoteVersion.Trim()
-} catch {
-    Write-Error "Impossible de récupérer la version distante. Vérifiez l'URL."
+# Jeton GitHub (recommandé de le stocker dans une variable d'environnement pour plus de sécurité)
+$token = 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  # Stockez le jeton dans une variable d'environnement nommée "GITHUB_TOKEN"
+
+# Vérifiez que le jeton existe
+if (-not $token) {
+    Write-Error "Le jeton GitHub est introuvable. Stockez-le dans une variable d'environnement nommée GITHUB_TOKEN."
     exit 1
 }
 
-# Définir la version locale (doit être codée dans le script local)
-$localVersion = "2"
+# En-têtes pour l'authentification
+$headers = @{
+    Authorization = "token $token"
+}
+
+# Chemin du script local (le fichier actuellement exécuté)
+$localScriptPath = $MyInvocation.MyCommand.Path
+
+# Version locale du script
+$localVersion = "2.0.0"  # Version actuelle codée en dur
+
+# --- Vérification de la version distante ---
+Write-Host "Récupération de la version distante..."
+try {
+    $remoteVersion = Invoke-RestMethod -Uri $versionFileURL -Headers $headers -UseBasicParsing
+    $remoteVersion = $remoteVersion.Trim()  # Supprime les espaces inutiles
+    Write-Host "Version distante : $remoteVersion"
+} catch {
+    Write-Error "Erreur lors de la récupération de la version distante : $_"
+    exit 1
+}
 
 # Comparer les versions
 if ($remoteVersion -ne $localVersion) {
-    Write-Host "Nouvelle version disponible : $remoteVersion (locale : $localVersion)"
-    Write-Host "Téléchargement de la nouvelle version..."
+    Write-Host "Une nouvelle version est disponible ! (Locale : $localVersion, Distante : $remoteVersion)"
+    Write-Host "Téléchargement et mise à jour du script..."
 
+    # --- Téléchargement et mise à jour ---
     try {
-        # Télécharger le nouveau script
-        Invoke-WebRequest -Uri $scriptFileURL -OutFile $localScriptPath -UseBasicParsing
-        Write-Host "Mise à jour réussie ! Redémarrage du script..."
+        Invoke-WebRequest -Uri $scriptFileURL -Headers $headers -OutFile $localScriptPath -UseBasicParsing
+        Write-Host "Mise à jour réussie. Redémarrage du script..."
         
-        # Relancer le script après mise à jour
+        # Redémarrer le script mis à jour
         Start-Process -FilePath "powershell.exe" -ArgumentList "-File `"$localScriptPath`"" -NoNewWindow
         exit
     } catch {
@@ -36,5 +56,12 @@ if ($remoteVersion -ne $localVersion) {
         exit 1
     }
 } else {
-    Write-Host "Le script est déjà à jour (version : $localVersion)."
+    Write-Host "Le script est déjà à jour (Version locale : $localVersion)."
 }
+
+# --- Exécution normale ---
+Write-Host "Exécution du script actuel..."
+# Ajoutez ici le reste de votre logique métier
+
+
+#CECI EST MON SCRIPT V2.0.0
