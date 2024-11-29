@@ -1,4 +1,4 @@
-#Version 1.0.0
+#Version 3.0.0
 # --- Configuration ---
 # URL du script distant sur GitHub
 $repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/Supervision/refs/heads/main"
