@@ -1,5 +1,4 @@
 # ====================================================================
-# Script PowerShell : Vérification et gestion des sessions de sauvegarde Veeam
 # Auteur : Tiago DA SILVA - ATHEO INGENIERIE
 # Version : 1.0.0
 # Date de création : 2024-11-29
