@@ -181,7 +181,9 @@ if ($localVersion -ne $remoteVersion) {
 #region Variables
 $vbrServer = "localhost"
 $HourstoCheck = $RPO
-$vbrMasterHash = @()
+$criticalSessions = @()
+$warningSessions = @()
+$allSessionDetails = @()
 #endregion
 
 #region Connect to VBR server
@@ -205,11 +207,6 @@ try {
         Handle-Unknown "No Backup Session found."
     }
         
-    # Variables to build the final message
-    $criticalSessions = @()
-    $warningSessions = @()
-    $allSessionDetails = @()
-    
     # Iterate over each collection
     foreach ($session in $sessListBk) {
         $sessionName = $session.JobName
