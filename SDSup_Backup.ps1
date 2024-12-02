@@ -5,7 +5,7 @@
 #               et retourne des messages d'alerte en fonction du statut des tâches.
 # Version : 1.0.0
 # Date de création : 2024-11-29
-# Dernière mise à jour : 2024-11-29
+# Dernière mise à jour : 2024-12-02
 # Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
 # ====================================================================
 #
