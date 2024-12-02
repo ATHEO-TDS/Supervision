@@ -152,7 +152,7 @@ If ($OpenConnection -ne $vbrServer){
     Try {
         Connect-VBRServer -server $vbrServer -ErrorAction Stop
     } Catch {
-        handle_critical "Unable to connect to the VBR server."
+        Exit-Critical "Unable to connect to the VBR server."
     exit
     }
 }

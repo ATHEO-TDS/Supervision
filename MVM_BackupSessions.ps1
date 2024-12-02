@@ -46,8 +46,8 @@ $localScriptPath = $MyInvocation.MyCommand.Path
         }
     #endregion
 
-    #region Fonctions Handle NRPE
-        function Handle-OK {
+    #region Fonctions Exit NRPE
+        function Exit-OK {
             param (
                 [string]$message
             )
@@ -58,7 +58,7 @@ $localScriptPath = $MyInvocation.MyCommand.Path
             exit 0
         }
 
-        function Handle-Warning {
+        function Exit-Warning {
             param (
                 [string]$message
             )
@@ -69,7 +69,7 @@ $localScriptPath = $MyInvocation.MyCommand.Path
             exit 1
         }
 
-        function Handle-Critical {
+        function Exit-Critical {
             param (
                 [string]$message
             )
@@ -80,7 +80,7 @@ $localScriptPath = $MyInvocation.MyCommand.Path
             exit 2
         }
 
-        function Handle-Unknown {
+        function Exit-Unknown {
             param (
                 [string]$message
             )
@@ -154,7 +154,7 @@ If ($OpenConnection -ne $vbrServer){
     Try {
         Connect-VBRServer -server $vbrServer -ErrorAction Stop
     } Catch {
-        handle_critical "Unable to connect to the VBR server."
+        Exit-Critical "Unable to connect to the VBR server."
     exit
     }
 }
@@ -165,7 +165,7 @@ try {
     $sessListBk = @(GetVBRBackupSession)
     $sessListBk = $sessListBk | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object SessionEndTime -Descending | Select-Object -First 1}
     if (-not $sessListBk) {
-        Handle-Unknown "No Backup Session found."
+        Exit-Unknown "No Backup Session found."
     }
         
     # Iterate over each collection
@@ -173,11 +173,12 @@ try {
         $sessionName = $session.JobName
         $quotedSessionName = "'$sessionName'"
 
-        $sessionResult = @{
-            "Success" = 0
-            "Warning" = 1
-            "Failed" = 2
-        }[$session.Result]
+        $sessionResult = switch ($session.Result) {
+            "Success" { 0 }
+            "Warning" { 1 }
+            "Failed" { 2 }
+            default { Exit-Critical "Unknown session result : $($session.Result)"}  # Gérer les cas inattendus
+        }
 
         # Append session details
         $allSessionDetails += "$quotedSessionName=$sessionResult;1;2"
@@ -211,11 +212,11 @@ try {
 
     # Handle the final status
     switch ($status) {
-        "CRITICAL" { Handle-Critical $finalMessage }
-        "WARNING" { Handle-Warning $finalMessage }
-        "OK" { Handle-OK $finalMessage }
+        "CRITICAL" { Exit-Critical $finalMessage }
+        "WARNING" { Exit-Warning $finalMessage }
+        "OK" { Exit-OK $finalMessage }
     }
 
 } catch {
-    Handle-Critical "An error occurred: $_"
+    Exit-Critical "An error occurred: $_"
 }
