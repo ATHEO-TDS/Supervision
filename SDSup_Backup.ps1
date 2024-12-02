@@ -3,7 +3,7 @@
 # Auteur : Tiago DA SILVA - ATHEO INGENIERIE
 # Description : Ce script vérifie l'état des sessions de sauvegarde Veeam
 #               et retourne des messages d'alerte en fonction du statut des tâches.
-# Version : 1.0.1
+# Version : 1.0.2
 # Date de création : 2024-11-29
 # Dernière mise à jour : 2024-12-02
 # Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
@@ -21,16 +21,16 @@
 #
 # ====================================================================
 
-#region Update Configuration
-$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$scriptFileURL = "$repoURL/SDSup_Backup.ps1"
-$localScriptPath = $MyInvocation.MyCommand.Path
-#endregion
-
 #region Arguments
 param (
     [int]$RPO
 )
+#endregion
+
+#region Update Configuration
+$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
+$scriptFileURL = "$repoURL/SDSup_Backup.ps1"
+$localScriptPath = $MyInvocation.MyCommand.Path
 #endregion
 
 #region Functions      
