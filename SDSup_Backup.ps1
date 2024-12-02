@@ -62,7 +62,7 @@ param (
     #endregion
 
     #region Fonctions Handle NRPE
-        function handle_ok {
+        function Handle-OK {
             param (
                 [string]$message
             )
@@ -73,7 +73,7 @@ param (
             exit 0
         }
 
-        function handle_warning {
+        function Handle-Warning {
             param (
                 [string]$message
             )
@@ -84,7 +84,7 @@ param (
             exit 1
         }
 
-        function handle_critical {
+        function Handle-Critical {
             param (
                 [string]$message
             )
@@ -95,7 +95,7 @@ param (
             exit 2
         }
 
-        function handle_unknown {
+        function Handle-Unknown {
             param (
                 [string]$message
             )
@@ -180,7 +180,7 @@ if ($localVersion -ne $remoteVersion) {
 
 #region Variables
 $vbrServer = "localhost"
-$HourstoCheck = $RPO
+$HourstoCheck = $RPO = 24
 $vbrMasterHash = @()
 #endregion
 
@@ -197,45 +197,67 @@ If ($OpenConnection -ne $vbrServer){
 }
 #endregion
 
-$sessListBk = @(GetVBRBackupSession)
-$sessListBk = $sessListBk | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object SessionEndTime -Descending | Select-Object -First 1}
-
-$successSessionsBk = @($sessListBk | Where-Object {$_.Result -eq "Success"})
-$warningSessionsBk = @($sessListBk | Where-Object {$_.Result -eq "Warning"})
-$failsSessionsBk = @($sessListBk | Where-Object {($_.Result -eq "Failed") -and ($_.WillBeRetried -eq "True")})
-$runningSessionsBk = @($sessListBk | Where-Object {($_.State -eq "Working")})
-$failedSessionsBk = @($sessListBk | Where-Object {($_.Result -eq "Failed") -and ($_.WillBeRetried -ne "True")})
-
-$vbrMasterHash = @{
-    "Failed" = @($failedSessionsBk).Count
-    "Sessions" = If ($sessListBk) {@($sessListBk).Count} Else {0}
-    "Successful" = @($successSessionsBk).Count
-    "Warning" = @($warningSessionsBk).Count
-    "Fails" = @($failsSessionsBk).Count
-    "Running" = @($runningSessionsBk).Count
-}
-$vbrMasterObj = New-Object -TypeName PSObject -Property $vbrMasterHash
-
-if ($vbrMasterObj.Sessions -eq 0) {
-    handle_critical "No backup sessions found or unable to fetch backup job information."
-}
-if ($vbrMasterObj.Failed -gt 0) {
-    $failedJobs = @($failedSessionsBk | Select-Object -ExpandProperty JobName) -join ", "
-    handle_critical "At least one failed backup session: $failedJobs"
-}
-if ($vbrMasterObj.Warning -gt 0 -and $vbrMasterObj.Failed -eq 0) {
-    $warningJobs = @($warningSessionsBk | Select-Object -ExpandProperty JobName) -join ", "
-    handle_warning "At least one backup session is in a warning state: $warningJobs"
-}
-if ($vbrMasterObj.Fails -gt 0) {
-    $failedJobs = @($failsSessionsBk | Select-Object -ExpandProperty JobName) -join ", "
-    handle_warning "At least one backup session has failed, but waiting for retry : $failedJobs"
-}
-if ($vbrMasterObj.Successful -eq $vbrMasterObj.Sessions) {
-    $message = "All backup sessions are successful ($($vbrMasterObj.Successful))."
-    if ($vbrMasterObj.Running -gt 0) {
-        $runningJobs = @($runningSessionsBk | Select-Object -ExpandProperty JobName) -join ", "
-        $message = "All backup sessions are successful, but there are jobs still running: $runningJobs."
+try {
+    # Get all backup session
+    $sessListBk = @(GetVBRBackupSession)
+    $sessListBk = $sessListBk | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object SessionEndTime -Descending | Select-Object -First 1}
+    if (-not $sessListBk) {
+        Handle-Unknown "No Backup Session found."
     }
-    handle_ok $message
+        
+    # Variables to build the final message
+    $criticalSessions = @()
+    $warningSessions = @()
+    $allSessionDetails = @()
+    
+    # Iterate over each collection
+    foreach ($session in $sessListBk) {
+        $sessionName = $session.JobName
+        $quotedSessionName = "'$sessionName'"
+
+        Switch($session.Result){
+            "Success" {$sessionResult = 0}
+            "Warning" {$sessionResult = 1}
+            "Failed" {$sessionResult = 2}        
+        }
+
+        # Append session details
+        $allSessionDetails += "$quotedSessionName=$sessionResult;1;2"
+
+        if ($sessionResult -eq 2) {
+            $criticalSessions += "$sessionName"
+        } elseif ($totalUsers -eq 1) {
+            $warningSessions += "$sessionName"
+        }
+    }
+
+    $sessionsCount = $allSessionDetails.Count
+
+    # Construct the status message
+    if ($criticalSessions.Count -gt 0) {
+        $statusMessage = "At least one failed backup session : " + ($criticalSessions -join " / ")
+        $status = "CRITICAL"
+    } elseif ($warningSessions.Count -gt 0) {
+        $statusMessage = "At least one backup session is in a warning state : " + ($warningSessions -join " / ")
+        $status = "WARNING"
+    } else {
+        $statusMessage = "All backup sessions are successful ($sessionsCount)"
+        $status = "OK"
+    }
+
+    # Construct the statistics message
+    $statisticsMessage = $allSessionDetails -join " "
+
+    # Construct the final message
+    $finalMessage = "$statusMessage|$statisticsMessage"
+
+    # Handle the final status
+    switch ($status) {
+        "CRITICAL" { Handle-Critical $finalMessage }
+        "WARNING" { Handle-Warning $finalMessage }
+        "OK" { Handle-OK $finalMessage }
+    }
+
+} catch {
+    Handle-Critical "An error occurred: $_"
 }
