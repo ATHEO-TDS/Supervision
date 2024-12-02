@@ -3,7 +3,7 @@
 # Auteur : Tiago DA SILVA - ATHEO INGENIERIE
 # Description : Ce script vérifie l'état des sessions de sauvegarde Veeam
 #               et retourne des messages d'alerte en fonction du statut des tâches.
-# Version : 1.0.0
+# Version : 1.0.1
 # Date de création : 2024-11-29
 # Dernière mise à jour : 2024-12-02
 # Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
@@ -21,11 +21,11 @@
 #
 # ====================================================================
 
-#region Update Script
-# Configuration
+#region Update Configuration
 $repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
 $scriptFileURL = "$repoURL/SDSup_Backup.ps1"
 $localScriptPath = $MyInvocation.MyCommand.Path
+#endregion
 
 #region Arguments
 param (
@@ -33,25 +33,7 @@ param (
 )
 #endregion
 
-#region Functions
-    #region Fonction Write-Log
-        function Write-Log {
-            param (
-                [string]$File,
-                [string]$Type,
-                [string]$Message
-            )
-            # Chemin du fichier de log
-            $logFile = ".\LOGS\$File.log"
-            # Timestamp pour l'entrée de log
-            $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-            # Format du message de log
-            $logMessage = "$timestamp - $Type - $Message"
-            # Ajout du message au fichier de log
-            Add-Content -Path $logFile -Value $logMessage
-        }
-    #endregion
-
+#region Functions      
     #region Fonction Get-VersionFromScript
         function Get-VersionFromScript {
             param (
@@ -137,45 +119,27 @@ param (
     #endregion
 #endregion
 
+#region Update 
 # --- Extraction de la version locale ---
 $localScriptContent = Get-Content -Path $localScriptPath -Raw
 $localVersion = Get-VersionFromScript -scriptContent $localScriptContent
-if (-not $localVersion) {
-    Write-Log "Update" "ERROR" "Version locale introuvable. Vérifiez le format de la ligne de version."
-    exit 1
-}
-Write-Log "Update" "INFO" "Version locale : $localVersion"
 
 # --- Récupération du script distant ---
-try {
-    $remoteScriptContent = Invoke-RestMethod -Uri $scriptFileURL -Headers $headers -UseBasicParsing
-} catch {
-    Write-Log "Update" "ERROR" "Erreur lors de la récupération du script distant : $_"
-    exit 1
-}
+$remoteScriptContent = Invoke-RestMethod -Uri $scriptFileURL -Headers $headers -UseBasicParsing
 
 # --- Extraction de la version distante ---
 $remoteVersion = Get-VersionFromScript -scriptContent $remoteScriptContent
-if (-not $remoteVersion) {
-    Write-Log "Update" "ERROR" "Version distante introuvable. Vérifiez le format de la ligne de version dans le script distant."
-    exit 1
-}
-Write-Log "Update" "INFO" "Version distante : $remoteVersion"
 
-# --- Comparaison des versions ---
+# --- Comparaison des versions et mise à jour ---
 if ($localVersion -ne $remoteVersion) {
-    Write-Log "Update" "INFO" "Une nouvelle version est disponible ! (Locale : $localVersion, Distante : $remoteVersion)"
     try {
         # Écrase le script local avec le contenu distant
         $remoteScriptContent | Set-Content -Path $localScriptPath -Force
-        Write-Log "Update" "INFO" "Mise à jour réussie. Le script mis à jour sera utilisé lors de la prochaine execution"
     } catch {
-        Write-Log "Update" "ERROR" "Erreur lors de la mise à jour : $_"
-        exit 1
     }
-} else {
-    Write-Log "Update" "INFO" "Le script est déjà à jour (Version locale : $localVersion)."
 }
+#endregion
+
 #endregion
 
 #region Variables
@@ -212,18 +176,18 @@ try {
         $sessionName = $session.JobName
         $quotedSessionName = "'$sessionName'"
 
-        Switch($session.Result){
-            "Success" {$sessionResult = 0}
-            "Warning" {$sessionResult = 1}
-            "Failed" {$sessionResult = 2}        
-        }
+        $sessionResult = @{
+            "Success" = 0
+            "Warning" = 1
+            "Failed" = 2
+        }[$session.Result]
 
         # Append session details
         $allSessionDetails += "$quotedSessionName=$sessionResult;1;2"
 
         if ($sessionResult -eq 2) {
             $criticalSessions += "$sessionName"
-        } elseif ($totalUsers -eq 1) {
+        } elseif ($sessionResult -eq 1) {
             $warningSessions += "$sessionName"
         }
     }
@@ -258,3 +222,4 @@ try {
 } catch {
     Handle-Critical "An error occurred: $_"
 }
+
