@@ -1,6 +1,5 @@
 # Supervision
 ## Backup Job
-### Description
 Ce script permet de surveiller les tâches de sauvegarde dans **Veeam Backup & Replication** et d'envoyer des alertes basées sur le statut des sauvegardes. Il analyse les sessions récentes en fonction de l'heure définie par le paramètre `$RPO` (Recovery Point Objective), et signale toute session ayant échoué, étant en avertissement ou en échec. 
 
 ### Paramètres
