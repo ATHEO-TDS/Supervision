@@ -21,13 +21,19 @@
 #
 # ====================================================================
 
-#region arguments
+#region Update Script
+# Configuration
+$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
+$scriptFileURL = "$repoURL/SDSup_Backup_newgen.ps1"
+$localScriptPath = $MyInvocation.MyCommand.Path
+
+#region Arguments
 param (
     [int]$RPO
 )
 #endregion
 
-#region functions
+#region Functions
     #region Fonction Write-Log
         function Write-Log {
             param (
@@ -131,12 +137,6 @@ param (
     #endregion
 #endregion
 
-#region update script
-# Configuration
-$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$scriptFileURL = "$repoURL/SDSup_Backup_newgen.ps1"
-$localScriptPath = $MyInvocation.MyCommand.Path
-
 # --- Extraction de la version locale ---
 $localScriptContent = Get-Content -Path $localScriptPath -Raw
 $localVersion = Get-VersionFromScript -scriptContent $localScriptContent
@@ -180,7 +180,7 @@ if ($localVersion -ne $remoteVersion) {
 
 #region Variables
 $vbrServer = "localhost"
-$HourstoCheck = $RPO = 24
+$HourstoCheck = $RPO
 $vbrMasterHash = @()
 #endregion
 
