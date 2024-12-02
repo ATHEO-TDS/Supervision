@@ -29,7 +29,7 @@ param (
 
 #region Update Configuration
 $repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$scriptFileURL = "$repoURL/SDSup_Backup.ps1"
+$scriptFileURL = "$repoURL/MVM_BackupSessions.ps1"
 $localScriptPath = $MyInvocation.MyCommand.Path
 #endregion
 
