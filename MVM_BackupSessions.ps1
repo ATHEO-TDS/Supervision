@@ -1,21 +1,19 @@
 # ====================================================================
 # Script PowerShell : Vérification et gestion des sessions de sauvegarde Veeam
 # Auteur : Tiago DA SILVA - ATHEO INGENIERIE
-# Description : Ce script vérifie l'état des sessions de sauvegarde Veeam
-#               et retourne des messages d'alerte en fonction du statut des tâches.
 # Version : 1.0.0
 # Date de création : 2024-11-29
 # Dernière mise à jour : 2024-12-02
 # Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
 # ====================================================================
 #
-# Ce script permet de surveiller les tâches de sauvegarde dans Veeam Backup & Replication
-# et d'envoyer des alertes basées sur le statut des sauvegardes.
-# Il analyse les sessions récentes en fonction de l'heure définie par le paramètre `$RPO`,
-# en signalant toute session ayant échoué, étant en avertissement ou en échec.
+# Ce script permet de surveiller les tâches de sauvegarde dans Veeam Backup & Replication 
+# et d'envoyer des alertes basées sur le statut des sauvegardes. Il analyse les sessions 
+# récentes en fonction de l'heure définie par le paramètre $RPO (Recovery Point Objective), 
+# et signale toute session étant en avertissement ou ayant échoué.
 #
-# L'objectif est d'assurer un suivi efficace des sauvegardes et de signaler rapidement tout
-# problème éventuel nécessitant une attention particulière.
+# L'objectif est d'assurer un suivi efficace des sauvegardes et de signaler rapidement via 
+# un outil de monitoring tout problème éventuel nécessitant une attention particulière.
 #
 # Veuillez consulter le dépôt GitHub pour plus de détails et de documentation.
 #
@@ -222,4 +220,3 @@ try {
 } catch {
     Handle-Critical "An error occurred: $_"
 }
-
