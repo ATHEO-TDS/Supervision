@@ -163,7 +163,7 @@ try {
     $sessListBc = @(GetVBRBackupCopySession)
     $sessListBc = $sessListBc | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object SessionEndTime -Descending | Select-Object -First 1}
     if (-not $sessListBc) {
-        Handle-Unknown "No Backup Copy Session found."
+        Handle-Unknown "No backup copy session found."
     }
         
     # Iterate over each collection
@@ -193,13 +193,13 @@ try {
 
     # Construct the status message
     if ($criticalSessions.Count -gt 0) {
-        $statusMessage = "At least one failed backup session : " + ($criticalSessions -join " / ")
+        $statusMessage = "At least one failed backup copy session : " + ($criticalSessions -join " / ")
         $status = "CRITICAL"
     } elseif ($warningSessions.Count -gt 0) {
-        $statusMessage = "At least one backup session is in a warning state : " + ($warningSessions -join " / ")
+        $statusMessage = "At least one backup copy session is in a warning state : " + ($warningSessions -join " / ")
         $status = "WARNING"
     } else {
-        $statusMessage = "All backup sessions are successful ($sessionsCount)"
+        $statusMessage = "All backup copy sessions are successful ($sessionsCount)"
         $status = "OK"
     }
 
