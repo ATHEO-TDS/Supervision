@@ -96,6 +96,7 @@ $excludedDCsArray = $ExcludedDataCenters -split ','
 $vmTagMapping = @{}
 $backupResults = @()
 $vmList = @()
+$allVMsStatuses = @()
 #endregion
 
 #region Connect to VBR Server
