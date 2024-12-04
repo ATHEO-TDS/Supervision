@@ -40,7 +40,6 @@ $localScriptPath = $MyInvocation.MyCommand.Path
             if ($scriptContent -match "# Version\s*:\s*([\d\.]+)") {
                 return $matches[1]
             } else {
-                Write-Error "Impossible de trouver la version dans le script."
                 return $null
             }
         }
