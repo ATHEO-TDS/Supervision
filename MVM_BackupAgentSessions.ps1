@@ -6,7 +6,7 @@
 # Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
 # ====================================================================
 #
-# Ce script permet de surveiller les tâches de sauvegarde dans Veeam Backup & Replication 
+# Ce script permet de surveiller les tâches de sauvegarde via Agent dans Veeam Backup & Replication 
 # et d'envoyer des alertes basées sur le statut des sauvegardes. Il analyse les sessions 
 # récentes en fonction de l'heure définie par le paramètre $RPO (Recovery Point Objective), 
 # et signale toute session étant en avertissement ou ayant échoué.
@@ -26,7 +26,7 @@ param (
 
 #region Update Configuration
 $repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$scriptFileURL = "$repoURL/MVM_BackupSessions.ps1"
+$scriptFileURL = "$repoURL/MVM_BackupAgentSessions.ps1"
 $localScriptPath = $MyInvocation.MyCommand.Path
 #endregion
 
@@ -95,7 +95,7 @@ $localScriptPath = $MyInvocation.MyCommand.Path
     #region Fonction GetVBRBackupSession
         function GetVBRBackupSession {
             $Type = @("Backup")
-            foreach ($i in ([Veeam.Backup.DBManager.CDBManager]::Instance.BackupJobsSessions.GetAll())  | Where-Object {($_.EndTime -ge (Get-Date).AddHours(-$RPO) -or $_.CreationTime -ge (Get-Date).AddHours(-$RPO) -or $_.State -eq "Working") -and $_.JobType -in $Type})
+            foreach ($i in ([Veeam.Backup.DBManager.CDBManager]::Instance.BackupJobsSessions.GetAll())  | Where-Object {($_.EndTime -ge (Get-Date).AddHours(-$HourstoCheck) -or $_.CreationTime -ge (Get-Date).AddHours(-$HourstoCheck) -or $_.State -eq "Working") -and $_.JobType -in $Type})
         { 
                         $sessionProps = @{ 
                         JobName = $i.JobName
@@ -159,22 +159,24 @@ If ($OpenConnection -ne $vbrServer){
 
 try {
     # Get all backup session
-    $sessListBk = @(GetVBRBackupSession)
-    $sessListBk = $sessListBk | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object SessionEndTime -Descending | Select-Object -First 1}
-    if (-not $sessListBk) {
-        Exit-Unknown "No Backup Session found."
+    $sessListEp = Get-VBRComputerBackupJobSession | Where-Object {($_.EndTime -ge (Get-Date).AddHours(-$HourstoCheck) -or $_.CreationTime -ge (Get-Date).AddHours(-$HourstoCheck) -or $_.State -eq "Working")}
+    $sessListEp = $sessListEp | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object EndTime -Descending | Select-Object -First 1}
+    
+    if (-not $sessListEp) {
+        Exit-Unknown "No agent backup session found."
     }
         
     # Iterate over each collection
-    foreach ($session in $sessListBk) {
+    foreach ($session in $sessListEp) {
         $sessionName = $session.JobName
         $quotedSessionName = "'$sessionName'"
 
         $sessionResult = switch ($session.Result) {
             "Success" { 0 }
+            "Working" { 0.5 }
             "Warning" { 1 }
             "Failed" { 2 }
-            default { Exit-Critical "Unknown session result : $($session.Result)"}  # Gérer les cas inattendus
+            default { Exit-Critical "Unknown session result : : $($session.Result)"}  # Gérer les cas inattendus
         }
 
         # Append session details
@@ -191,13 +193,13 @@ try {
 
     # Construct the status message
     if ($criticalSessions.Count -gt 0) {
-        $statusMessage = "At least one failed backup session : " + ($criticalSessions -join " / ")
+        $statusMessage = "At least one failed agent backup session : " + ($criticalSessions -join " / ")
         $status = "CRITICAL"
     } elseif ($warningSessions.Count -gt 0) {
-        $statusMessage = "At least one backup session is in a warning state : " + ($warningSessions -join " / ")
+        $statusMessage = "At least one agent backup session is in a warning state : " + ($warningSessions -join " / ")
         $status = "WARNING"
     } else {
-        $statusMessage = "All backup sessions are successful ($sessionsCount)"
+        $statusMessage = "All agent backup sessions are successful ($sessionsCount)"
         $status = "OK"
     }
 

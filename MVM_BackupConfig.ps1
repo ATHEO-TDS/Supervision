@@ -108,7 +108,7 @@ $remoteVersion = Get-VersionFromScript -scriptContent $remoteScriptContent
 if ($localVersion -ne $remoteVersion) {
     try {
         # Écrase le script local avec le contenu distant
-        $remoteScriptContent | Set-Content -Path $localScriptPath -Force
+        $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
     } catch {
     }
 }
