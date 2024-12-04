@@ -1,14 +1,27 @@
 # ====================================================================
 # Auteur : Tiago DA SILVA - ATHEO INGENIERIE
-# Version : 1.0.4
+# Version : 1.0.5
 # Date de création : 2024-11-29
 # Dernière mise à jour : 2024-12-02
 # Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
 # ====================================================================
-# 
-#REMPLIR DESCRIPTION
+#
+# Ce script permet de surveiller l'état de protection des machines virtuelles (VM) 
+# dans Veeam Backup & Replication. En comparant la liste des VM dont la sauvegarde est en success
+# avec la liste des VMs présente sur le vCenter
+#
+# L'objectif est de garantir que toutes les VMs sont correctement protégées par des 
+# sauvegardes et d'envoyer des alertes aux administrateurs via un système de supervision 
+# si des problèmes sont détectés.
+#
+# Le script offre également la possibilité d'exclure certaines VMs, dossiers, tags, 
+# clusters ou centres de données de l'analyse, pour une personnalisation en fonction 
+# des besoins de l'environnement.
+#
+# Veuillez consulter le dépôt GitHub pour plus de détails et de documentation.
 #
 # ====================================================================
+
 
 #region Parameters
 param (
