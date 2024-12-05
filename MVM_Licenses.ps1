@@ -21,7 +21,7 @@ param (
 
 #region Update Configuration
 $repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$scriptFileURL = "$repoURL/MVM_License.ps1"
+$scriptFileURL = "$repoURL/MVM_Licenses.ps1"
 $localScriptPath = $MyInvocation.MyCommand.Path
 #endregion
 
