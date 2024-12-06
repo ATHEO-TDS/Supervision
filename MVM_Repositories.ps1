@@ -1,6 +1,6 @@
 # ====================================================================
 # Auteur : Tiago DA SILVA - ATHEO INGENIERIE
-# Version : 1.0.0
+# Version : 1.0.1
 # Date de création : 2024-11-29
 # Dernière mise à jour : 2024-12-02
 # Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
@@ -18,25 +18,17 @@ param (
 )
 #endregion
 
+Import-Module ".\MVM_UpdateScript.psm1"
+
 #region Update Configuration
 $repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
 $remoteScriptURL = "$repoURL/MVM_Repositories.ps1"
 $localScriptPath = $MyInvocation.MyCommand.Path
 #endregion
 
-#region Functions
-# Function to extract version from a script file
-function Get-ScriptVersion {
-    param (
-        [string]$ScriptContent
-    )
-    if ($ScriptContent -match "# Version\s*:\s*([\d\.]+)") {
-        return $matches[1]
-    } else {
-        return $null
-    }
-}
+Update-Script -localScriptPath $localScriptPath -remoteScriptURL $remoteScriptURL
 
+#region Functions
 # Functions for NRPE-style exit codes
 function Exit-OK {
     param ([string]$Message)
@@ -103,23 +95,6 @@ Function Get-VBRRepoInfo {
 }
 #endregion
 
-#region Script Update
-# Fetch local script version
-$localScriptContent = Get-Content -Path $localScriptPath -Raw
-$localVersion = Get-ScriptVersion -ScriptContent $localScriptContent
-
-# Fetch remote script version
-$remoteScriptContent = Invoke-RestMethod -Uri $remoteScriptURL -UseBasicParsing
-$remoteVersion = Get-ScriptVersion -ScriptContent $remoteScriptContent
-
-# Update script if versions differ
-if ($localVersion -ne $remoteVersion) {
-    try {
-        $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
-    } catch {
-    }
-}
-#endregion
 
 #region Variables
 $vbrServer = "localhost"
@@ -215,3 +190,6 @@ If ($filteredRepos.count -gt 0) {
     }Else{
         Exit-Unknown "No replica target found"
     }
+
+
+
