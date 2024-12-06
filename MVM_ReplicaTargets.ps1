@@ -11,9 +11,9 @@
 
 #region Parameters
 param (
-    [int]$Warning,
-    [int]$Critical,
-    [string]$ExcludedTargets
+    [int]$Warning = 80,
+    [int]$Critical = 90,
+    [string]$ExcludedTargets = ""
 )
 #endregion
 
@@ -81,12 +81,16 @@ Function Get-VBRReplicaTarget {
         If (($dsAry -contains $obj.ViReplicaTargetOptions.DatastoreName) -eq $false) {
           $esxi = $obj.GetTargetHost()
           $dtstr =  $esxi | Find-VBRViDatastore -Name $obj.ViReplicaTargetOptions.DatastoreName
+          $FreePercentage = [Math]::Round(($dtstr.FreeSpace / $dtstr.Capacity) * 100)
+          $UsedPercentage = [Math]::Round(100 - $FreePercentage)
           $objoutput = New-Object -TypeName PSObject -Property @{
-            Datastore = $obj.ViReplicaTargetOptions.DatastoreName
-            StorageFree = [Math]::Round([Decimal]$dtstr.FreeSpace/1GB,2)
-            StorageTotal = [Math]::Round([Decimal]$dtstr.Capacity/1GB,2)
-            FreePercentage = [Math]::Round(($dtstr.FreeSpace/$dtstr.Capacity)*100)
+                Datastore       = $obj.ViReplicaTargetOptions.DatastoreName
+                StorageFree     = [Math]::Round([Decimal]$dtstr.FreeSpace / 1GB, 2)
+                StorageTotal    = [Math]::Round([Decimal]$dtstr.Capacity / 1GB, 2)
+                FreePercentage  = $FreePercentage
+                UsedPercentage  = $UsedPercentage
           }
+
           $dsAry = $dsAry + $obj.ViReplicaTargetOptions.DatastoreName
           $outputAry = $outputAry + $objoutput
         } Else {
@@ -95,7 +99,7 @@ Function Get-VBRReplicaTarget {
       }
     }
     END {
-      $outputAry | Select-Object Target, Datastore, StorageFree, StorageTotal, FreePercentage
+      $outputAry | Select-Object Target, Datastore, StorageFree, StorageTotal, FreePercentage, UsedPercentage
     }
   }
 #endregion
@@ -121,6 +125,13 @@ if ($localVersion -ne $remoteVersion) {
 #region Variables
 $vbrServer = "localhost"
 $ExcludedTargetsArray = $ExcludedTargets -split ','
+$outputStats = @()
+#endregion
+
+#region check params
+if ($Critical -le $Warning) {
+    Exit-Critical "Critical threshold ($Critical) must be greater than Warning threshold ($Warning)."
+}
 #endregion
 
 #region Connect to VBR Server
@@ -140,100 +151,53 @@ $allJobsRp = @($allJobs | Where-Object {$_.JobType -eq "Replica"})
 $repTargets = $allJobsRp | Get-VBRReplicaTarget | Select-Object @{Name="Name"; Expression = {$_.Datastore}},
       @{Name="Free (GB)"; Expression = {$_.StorageFree}}, @{Name="Total (GB)"; Expression = {$_.StorageTotal}},
       @{Name="Free (%)"; Expression = {$_.FreePercentage}},
+      @{Name = "Used (%)"; Expression = {$_.UsedPercentage}},
       @{Name="Status"; Expression = {
-        If ($_.FreePercentage -lt $Critical) {"Critical"}
-        ElseIf ($_.StorageTotal -eq 0)  {"Warning"}
-        ElseIf ($_.FreePercentage -lt $Warning) {"Warning"}
-        ElseIf ($_.FreePercentage -eq "Unknown") {"Unknown"}
+        If ($_.UsedPercentage -ge $Critical) {"Critical"}
+        ElseIf ($_.UsedPercentage -ge $Warning) {"Warning"}
         Else {"OK"}
         }
       }
 
+$ExcludedTargets_regex = ('(?i)^(' + (($ExcludedTargetsArray | ForEach-Object {[regex]::escape($_)}) -join "|") + ')$') -replace "\\\*", ".*"
+$filteredrepTargets = $repTargets | Where-Object {$_.Name -notmatch $ExcludedTargets_regex}
 
-########### TEST
+If ($filteredrepTargets.count -gt 0) {
 
-$repTargets = @(
-    [PSCustomObject]@{
-        Name          = "Target01"
-        'Free (GB)'   = 50
-        'Total (GB)'  = 1000
-        'Free (%)'    = 5
-        Status        = "Critical"
-    },
-    [PSCustomObject]@{
-        Name          = "Target02"
-        'Free (GB)'   = 200
-        'Total (GB)'  = 1000
-        'Free (%)'    = 20
-        Status        = "Warning"
-    },
-    [PSCustomObject]@{
-        Name          = "Target03"
-        'Free (GB)'   = 500
-        'Total (GB)'  = 1000
-        'Free (%)'    = 50
-        Status        = "OK"
-    },
-    [PSCustomObject]@{
-        Name          = "Target04"
-        'Free (GB)'   = 0
-        'Total (GB)'  = 0
-        'Free (%)'    = "Unknown"
-        Status        = "Unknown"
-    }
-)
+    $criticalRepTargets = @($filteredrepTargets | Where-Object {$_.Status -eq "Critical"})
+    $warningRepTargets = @($filteredrepTargets | Where-Object {$_.Status -eq "Warning"})
+    #$okRepTargets = @($filteredrepTargets | Where-Object {$_.Status -eq "OK"})
 
-$repTargets
+    foreach ($target in $filteredrepTargets) {
+    $name = $target.Name -replace ' ', '_'
+    $totalGB = $target.'Total (GB)'
+    $freeGB = $target.'Free (GB)'
+    $usedGB = $totalGB - $freeGB 
+    $prctUsed = $target.'Used (%)'
 
+    # Convert Warning and Critical thresholds to percentages of the total GB
+    $warningGB = [Math]::Round(($Warning / 100) * $totalGB, 2)
+    $criticalGB = [Math]::Round(($Critical / 100) * $totalGB, 2)
+    
+    # Construct strings for the output
+    $targetStats = "$name=${usedGB}GB;$warningGB;$criticalGB;0;$totalGB"
+    $prctUsedStats = "${name}_prct_used=$prctUsed%;$Warning;$Critical"
+    
+    # Append to the output array
+    $outputStats += "$targetStats $prctUsedStats"}
 
-########### TEST
-
-
-
-If ($repTargets.count -gt 0) {
-
-    $ExcludedTargets_regex = ('(?i)^(' + (($ExcludedTargetsArray | ForEach-Object {[regex]::escape($_)}) -join "|") + ')$') -replace "\\\*", ".*"
-    $filteredrepTargets = $repTargets | Where-Object {$_.Name -notmatch $ExcludedTargets_regex}
-    $criticalRepTargets = $filteredrepTargets | Where-Object {$_.Status -eq "Critical"}
-    $warningRepTargets = $filteredrepTargets | Where-Object {$_.Status -eq "Warning"}
-    $unknownRepTargets = $filteredrepTargets | Where-Object {$_.Status -eq "Unknown"}
-    $okRepTargets = $filteredrepTargets | Where-Object {$_.Status -eq "OK"}
-
-    $outputCritical = $criticalRepTargets | ForEach-Object {"$($_.Name) - Free : $($_.'Free (%)')% ($($_.'Free (GB)')/$($_.'Total (GB)') GB)"} -join ", "
-    $outputWarning = $warningRepTargets | ForEach-Object {"$($_.Name) - Free : $($_.'Free (%)')% ($($_.'Free (GB)')/$($_.'Total (GB)') GB)"} -join ", "
-    $outputUnknown = $unknownRepTargets | ForEach-Object {$($_.Name)} -join ", "
-    $outputOk = $okRepTargets | ForEach-Object {"$($_.Name) - Free : $($_.'Free (%)')% ($($_.'Free (GB)')/$($_.'Total (GB)') GB)"} -join ", "
+    $outputCritical = ($criticalRepTargets | Sort-Object { $_.'Free (%)' } | ForEach-Object {"$($_.Name) - Free : $($_.'Free (%)')% ($($_.'Free (GB)')/$($_.'Total (GB)') GB)"}) -join ", "
+    $outputWarning = ($warningRepTargets | Sort-Object { $_.'Free (%)' } | ForEach-Object {"$($_.Name) - Free : $($_.'Free (%)')% ($($_.'Free (GB)')/$($_.'Total (GB)') GB)"}) -join ", "
+    #$outputOk = ($okRepTargets | Sort-Object { $_.'Free (%)' } | ForEach-Object {"$($_.Name) - Free : $($_.'Free (%)')% ($($_.'Free (GB)')/$($_.'Total (GB)') GB)"}) -join ", "
        
     If ($criticalRepTargets.count -gt 0) {
-        Exit-Critical "$($criticalRepTargets.count) replica target(s) are in critical state : $outputCrit"
+        Exit-Critical "$($criticalRepTargets.count) replica target(s) are in critical state : $outputCritical|$outputStats"
     }ElseIf ($warningRepTargets.count -gt 0) {
-        Exit-Warning ""
-    }ElseIf($unknownRepTargets.count -gt 0 ){
-        Exit-Unknown ""
+        Exit-Warning "$($warningRepTargets.count) replica target(s) are in warning state : $outputWarning|$outputStats"
     }Else{
-        Exit-OK ""
+        Exit-OK "All replica target(s) are in ok state|$outputStats"
     }
 
 }Else{
     Exit-Unknown "No replica target found"
-}
-
-
-
-
-
-
-
-
-
-
-
-If ($repTargets.status -match "Critical") {
-    handle_critical "Veeam Repository Status : $output"
-} ElseIf ($repTargets.status -match "Warning") {
-    handle_warning "Veeam Repository Status : $output"  
-} ElseIf ($repTargets.status -match "OK") {
-    handle_ok "Veeam Repository Status : $output"
-} Else {
-    handle_unknown "Unknown Status"
 }

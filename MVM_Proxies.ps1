@@ -167,6 +167,6 @@ If ($proxyList.count -gt 0) {
     }
 
 }Else{
-    Exit-Unknown "No Proxy Found"
+    Exit-Unknown "No proxy found"
 
 }
