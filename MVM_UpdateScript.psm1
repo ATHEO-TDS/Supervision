@@ -19,7 +19,8 @@ function Update-Script {
 
     #region Module Update
     $gitModuleURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main/MVM_UpdateScript.psm1"
-    $localModulePath = $MyInvocation.MyCommand.Path
+    $localModulePath = "./MVM_UpdateScript.psm1"
+    write-host "localModulePath $localModulePath"
 
     # Fetch local module version
     $localModuleContent = Get-Content -Path $localModulePath -Raw
