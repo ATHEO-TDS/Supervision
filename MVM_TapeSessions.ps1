@@ -6,7 +6,7 @@
 # Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
 # ====================================================================
 #
-#
+#a tester
 # ====================================================================
 
 #region Parameters
@@ -17,7 +17,7 @@ param (
 
 #region Update Configuration
 $repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$remoteScriptURL = "$repoURL/MVM_ReplicaSessions.ps1"
+$remoteScriptURL = "$repoURL/MVM_TapeSessions.ps1"
 $localScriptPath = $MyInvocation.MyCommand.Path
 #endregion
 
@@ -59,28 +59,6 @@ function Exit-Unknown {
     Write-Host "UNKNOWN - $Message"
     exit 3
 }
-#region Fonction GetVBRBackupSession
-function GetVBRBackupSession {
-    $Type = @("Replica")
-    foreach ($i in ([Veeam.Backup.DBManager.CDBManager]::Instance.BackupJobsSessions.GetAll())  | Where-Object {($_.EndTime -ge (Get-Date).AddHours(-$RPO) -or $_.CreationTime -ge (Get-Date).AddHours(-$RPO) -or $_.State -eq "Working") -and $_.JobType -in $Type})
-{ 
-                $sessionProps = @{ 
-                JobName = $i.JobName
-                JobType = $i.JobType
-                SessionId = $i.Id
-                SessionCreationTime = $i.CreationTime
-                SessionEndTime = $i.EndTime
-                SessionResult = $i.Result.ToString()
-                State = $i.State.ToString()
-                Result = $i.Result
-                Failures = $i.Failures
-                Warnings = $i.Warnings
-                WillBeRetried = $i.WillBeRetried
-        }  
-        New-Object PSObject -Property $sessionProps 
-    }
-}
-#endregion
 #endregion
 
 #region Script Update
@@ -113,24 +91,34 @@ if ((Get-VBRServerSession).Server -ne $vbrServer) {
 #endregion
 
 try {
-    # Get all backup session
-    $sessListRp = @(GetVBRBackupSession)
-    $sessListRp = $sessListRP | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object SessionEndTime -Descending | Select-Object -First 1}
+    # Get all tape sessions
+    $allJobsTp = @(Get-VBRTapeJob)
 
-    if (-not $sessListRp) {
-        Exit-Unknown "No replication session found."
+    $allSessTp = @()
+    If ($allJobsTp) {
+        Foreach ($tpJob in $allJobsTp){
+            $tpSessions = [veeam.backup.core.cbackupsession]::GetByJob($tpJob.id)
+            $allSessTp += $tpSessions
+        }
+    }
+
+    $sessListTp = @($allSessTp | Where-Object {$_.EndTime -ge (Get-Date).AddHours(-$HourstoCheck) -or $_.CreationTime -ge (Get-Date).AddHours(-$HourstoCheck) -or $_.State -match "Working|Idle"})
+    $sessListTp = $sessListTp | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object EndTime -Descending | Select-Object -First 1}
+
+    if (-not $sessListTp) {
+        Exit-Unknown "No surebackup session found."
     }
         
     # Iterate over each collection
-    foreach ($session in $sessListRp) {
+    foreach ($session in $sessListTp) {
         $sessionName = $session.JobName
         $quotedSessionName = "'$sessionName'"
 
         $sessionResult = switch ($session.Result) {
-            "Successful" { 0 }
-            "Running" { 0.5 }
+            "Success" { 0 }
+            "Idle" { 0.5 }
+            "Working" { 0.5 }
             "Warning" { 1 }
-            "Fails" {1.5}
             "Failed" { 2 }
             default { Exit-Critical "Unknown session result : $($session.Result)"}  # Gérer les cas inattendus
         }
@@ -149,13 +137,13 @@ try {
 
     # Construct the status message
     if ($criticalSessions.Count -gt 0) {
-        $statusMessage = "At least one failed replication session : " + ($criticalSessions -join " / ")
+        $statusMessage = "At least one failed tape session : " + ($criticalSessions -join " / ")
         $status = "CRITICAL"
     } elseif ($warningSessions.Count -gt 0) {
-        $statusMessage = "At least one replication session is in a warning state : " + ($warningSessions -join " / ")
+        $statusMessage = "At least one tape session is in a warning state : " + ($warningSessions -join " / ")
         $status = "WARNING"
     } else {
-        $statusMessage = "All replication sessions are successful ($sessionsCount)"
+        $statusMessage = "All tape sessions are successful ($sessionsCount)"
         $status = "OK"
     }
 
