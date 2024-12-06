@@ -1,6 +1,6 @@
 # ====================================================================
 # Auteur : Tiago DA SILVA - ATHEO INGENIERIE
-# Version : 1.0.2
+# Version : 1.0.3
 # Date de création : 2024-11-29
 # Dernière mise à jour : 2024-12-02
 # Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
@@ -20,20 +20,22 @@ function Update-Script {
     #region Module Update
     $gitModuleURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main/MVM_UpdateScript.psm1"
     $localModulePath = "./MVM_UpdateScript.psm1"
-    write-host "localModulePath $localModulePath"
 
     # Fetch local module version
     $localModuleContent = Get-Content -Path $localModulePath -Raw
-    $localModuleVersion = Get-ScriptVersion -ScriptContent $localModuleContent
+    $localModuleVersion = Get-ScriptVersion -Content $localModuleContent
+    write-host "localModuleVersion $localModuleVersion"
 
     # Fetch git module version
     $gitModuleContent = Invoke-RestMethod -Uri $gitModuleURL -UseBasicParsing
     $gitModuleVersion = Get-ScriptVersion -ScriptContent $gitModuleContent
+    write-host "gitModuleVersion $gitModuleVersion"
 
     # Update module if versions differ
     if ($localModuleVersion -ne $gitModuleVersion) {
         try {
             $gitModuleContent | Set-Content -Path $localModulePath -Encoding UTF8 -Force
+            write-host "update module ok"
         } catch {
             Write-Host "Error updating update module."
             Write-Host "Details: $($_.Exception.Message)"
@@ -54,6 +56,7 @@ function Update-Script {
     if ($localVersion -ne $remoteVersion) {
         try {
             $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
+            write-host "update ok"
         } catch {
             Write-Host "Error updating script."
             Write-Host "Details: $($_.Exception.Message)"
