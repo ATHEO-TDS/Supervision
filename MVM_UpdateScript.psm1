@@ -1,6 +1,6 @@
 # ====================================================================
 # Auteur : Tiago DA SILVA - ATHEO INGENIERIE
-# Version : 1.0.4
+# Version : 1.0.5
 # Date de création : 2024-11-29
 # Dernière mise à jour : 2024-12-02
 # Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
@@ -53,7 +53,6 @@ function Update-Script {
     if ($localVersion -ne $remoteVersion) {
         try {
             $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
-            write-host "update ok"
         } catch {
             Write-Host "Error updating script."
             Write-Host "Details: $($_.Exception.Message)"
