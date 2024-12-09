@@ -13,36 +13,22 @@
 #
 # ====================================================================
 
-#region Arguments
+#region Parameters
 param (
-    [int]$RPO  # RPO (Recovery Point Objective) in hours
+    [int]$RPO = 24 # Recovery Point Objective (hours)
 )
 #endregion
 
-#region Update Script
-$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$scriptFileURL = "$repoURL/MVM_BackupAgentSessions.ps1"
-$localScriptPath = $MyInvocation.MyCommand.Path
-
-# Extract and compare versions to update the script if necessary
-$localScriptContent = Get-Content -Path $localScriptPath -Raw
-$localVersion = Get-VersionFromScript -Content $localScriptContent
-
-$remoteScriptContent = Invoke-RestMethod -Uri $scriptFileURL -Headers $headers -UseBasicParsing
-$remoteVersion = Get-VersionFromScript -Content $remoteScriptContent
-
-if ($localVersion -ne $remoteVersion) {
-    try {
-        $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
-    } catch {
-        Write-Warning "Failed to update the script"
-    }
+#region Validate Parameters
+# Validate the $RPO parameter to ensure it's a positive integer
+if ($RPO -lt 1) {
+    Exit-Critical "Invalid parameter: 'RPO' must be greater than or equal to 1 hour. Please provide a valid value."
 }
 #endregion
 
 #region Functions
 
-# Function to extract the version from the script content
+# Extracts the version from script content
 function Get-VersionFromScript {
     param ([string]$Content)
     if ($Content -match "# Version\s*:\s*([\d\.]+)") {
@@ -57,11 +43,7 @@ function Exit-Warning { param ([string]$message) if ($message) { Write-Host "WAR
 function Exit-Critical { param ([string]$message) if ($message) { Write-Host "CRITICAL - $message" } exit 2 }
 function Exit-Unknown { param ([string]$message) if ($message) { Write-Host "UNKNOWN - $message" } exit 3 }
 
-#endregion
-
-#region Connection to VBR Server
-
-# Ensure connection to the VBR server
+# Ensures connection to the VBR server
 function Connect-VBRServerIfNeeded {
     $vbrServer = "localhost"
     $OpenConnection = (Get-VBRServerSession).Server
@@ -76,79 +58,97 @@ function Connect-VBRServerIfNeeded {
     }
 }
 
+#endregion
+
+#region Update Script
+$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
+$scriptFileURL = "$repoURL/MVM_BackupAgentSessions.ps1"
+$localScriptPath = $MyInvocation.MyCommand.Path
+
+# Extract and compare versions to update the script if necessary
+$localScriptContent = Get-Content -Path $localScriptPath -Raw
+$localVersion = Get-VersionFromScript -Content $localScriptContent
+
+$remoteScriptContent = Invoke-RestMethod -Uri $scriptFileURL -UseBasicParsing
+$remoteVersion = Get-VersionFromScript -Content $remoteScriptContent
+
+if ($localVersion -ne $remoteVersion) {
+    try {
+        $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
+    } catch {
+        Write-Warning "Failed to update the script"
+    }
+}
+#endregion
+
+#region Connection to VBR Server
 Connect-VBRServerIfNeeded
 #endregion
 
-#region Monitor Backup Agent Sessions
+#region Variables
+$criticalSessions = @()
+$warningSessions = @()
+$allSessionDetails = @()
+$statusMessage = ""
+#endregion
 
-# Get and filter Agent Backup Sessionsfor the specified RPO window
-function Get-BackupSessions {
-    param (
-        [int]$RPO
-    )
-
-    return Get-VBRComputerBackupJobSession | Where-Object {
+try {
+    # Retrieve all agent backup sessions
+    $sessListEp = Get-VBRComputerBackupJobSession | Where-Object {
         ($_.EndTime -ge (Get-Date).AddHours(-$RPO) -or $_.CreationTime -ge (Get-Date).AddHours(-$RPO) -or $_.State -eq "Working")
     } | Group-Object JobName | ForEach-Object {
         $_.Group | Sort-Object EndTime -Descending | Select-Object -First 1
     }
-}
 
-$sessListEp = Get-BackupSessions -RPO $RPO
-if (-not $sessListEp) {
-    Exit-Unknown "No agent backup session found."
-}
-
-# Process the Agent Backup Sessionsand categorize them by result
-$allSessionDetails = @()
-$criticalSessions = @()
-$warningSessions = @()
-
-foreach ($session in $sessListEp) {
-    $sessionName = $session.JobName
-    $quotedSessionName = "'$sessionName'"
-
-    $sessionResult = switch ($session.Result) {
-        "Success" { 0 }
-        "Working" { 0.5 }
-        "Warning" { 1 }
-        "Failed" { 2 }
-        default { Exit-Critical "Unknown session result: $($session.Result)" }
+    if (-not $sessListEp) {
+        Exit-Unknown "No agent backup session found."
     }
 
-    $allSessionDetails += "$quotedSessionName=$sessionResult;1;2"
-
-    if ($sessionResult -ge 2) {
-        $criticalSessions += $sessionName
-    } elseif ($sessionResult -ge 1) {
-        $warningSessions += $sessionName
+    foreach ($session in $sessListEp) {
+        $sessionName = $session.JobName
+        $quotedSessionName = "'$sessionName'"
+    
+        $sessionResult = switch ($session.Result) {
+            "Success" { 0 }
+            "Working" { 0.5 }
+            "Warning" { 1 }
+            "Failed" { 2 }
+            default { Exit-Critical "Unknown session result: $($session.Result)" }
+        }
+    
+        # Append session details
+        $allSessionDetails += "$quotedSessionName=$sessionResult;1;2"
+    
+        if ($sessionResult -ge 2) {
+            $criticalSessions += $sessionName
+        } elseif ($sessionResult -ge 1) {
+            $warningSessions += $sessionName
+        }
     }
+
+    # Construct the status message
+    if ($criticalSessions.Count -gt 0) {
+        $statusMessage = "At least one failed agent backup session: " + ($criticalSessions -join " / ")
+        $status = "CRITICAL"
+    } elseif ($warningSessions.Count -gt 0) {
+        $statusMessage = "At least one agent backup session is in a warning state: " + ($warningSessions -join " / ")
+        $status = "WARNING"
+    } else {
+        $statusMessage = "All agent backup sessions are successful ($($allSessionDetails.Count))"
+        $status = "OK"
+    }
+
+    # Construct the statistics message
+    $statisticsMessage = $allSessionDetails -join " "
+    # Construct the final message
+    $finalMessage = "$statusMessage|$statisticsMessage"
+
+    # Exit with the appropriate status
+    switch ($status) {
+        "CRITICAL" { Exit-Critical $finalMessage }
+        "WARNING" { Exit-Warning $finalMessage }
+        "OK" { Exit-OK $finalMessage }
+    }
+}Catch{
+    Exit-Critical "An error occurred: $_"
 }
-
-#endregion
-
-#region Final Status Report
-
-# Determine the final status based on session results
-$statusMessage = ""
-if ($criticalSessions.Count -gt 0) {
-    $statusMessage = "At least one failed agent backup session: " + ($criticalSessions -join " / ")
-    $status = "CRITICAL"
-} elseif ($warningSessions.Count -gt 0) {
-    $statusMessage = "At least one agent backup session is in a warning state: " + ($warningSessions -join " / ")
-    $status = "WARNING"
-} else {
-    $statusMessage = "All agent backup sessions are successful ($($allSessionDetails.Count))"
-    $status = "OK"
-}
-
-$statisticsMessage = $allSessionDetails -join " "
-$finalMessage = "$statusMessage|$statisticsMessage"
-
-# Exit with the appropriate status
-switch ($status) {
-    "CRITICAL" { Exit-Critical $finalMessage }
-    "WARNING" { Exit-Warning $finalMessage }
-    "OK" { Exit-OK $finalMessage }
-}
-#endregion

@@ -1,129 +1,90 @@
 # ====================================================================
-# Auteur : Tiago DA SILVA - ATHEO INGENIERIE
-# Version : 1.0.0
-# Date de création : 2024-11-29
-# Dernière mise à jour : 2024-12-02
-# Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
+# Author: Tiago DA SILVA - ATHEO INGENIERIE
+# Version: 1.0.0
+# Creation Date: 2024-11-29
+# Last Update: 2024-12-06
+# GitHub Repository: https://github.com/ATHEO-TDS/MyVeeamMonitoring
 # ====================================================================
 # 
-# Ce script permet de surveiller la sauvegarde de la configuration du serveur Veeam Backup & Replication 
-# et d'envoyer des alertes basées sur le statut de la sauvegarde. Il analyse les sessions 
-# récentes en fonction de l'heure définie par le paramètre $RPO (Recovery Point Objective), 
-# et signale toute session étant en avertissement ou ayant échoué.
+# This script monitors the backup configuration of the Veeam Backup & Replication server 
+# and sends alerts based on the backup status. It analyzes recent sessions 
+# according to the time defined by the $RPO (Recovery Point Objective) parameter, 
+# and reports any session that is in warning or has failed.
 #
-# L'objectif est d'assurer un suivi efficace de la sauvegarde et de signaler rapidement via 
-# un outil de monitoring tout problème éventuel nécessitant une attention particulière.
-#
-# Veuillez consulter le dépôt GitHub pour plus de détails et de documentation.
+# Please refer to the GitHub repository for more details and documentation.
 #
 # ====================================================================
 
-#region Arguments
+#region Parameters
 param (
-    [int]$RPO
+    [int]$RPO = 24  # RPO (Recovery Point Objective) in hours
 )
 #endregion
 
-#region Update Configuration
+#region Validate Parameters
+# Validate the $RPO parameter to ensure it's a positive integer
+if ($RPO -lt 1) {
+    Exit-Critical "Invalid parameter: 'RPO' must be greater than or equal to 1 hour. Please provide a valid value."
+}
+#endregion
+
+#region Functions
+
+# Extracts the version from script content
+function Get-VersionFromScript {
+    param ([string]$Content)
+    if ($Content -match "# Version\s*:\s*([\d\.]+)") {
+        return $matches[1]
+    }
+    return $null
+}
+
+# Functions for exit codes (OK, Warning, Critical, Unknown)
+function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
+function Exit-Warning { param ([string]$message) if ($message) { Write-Host "WARNING - $message" } exit 1 }
+function Exit-Critical { param ([string]$message) if ($message) { Write-Host "CRITICAL - $message" } exit 2 }
+function Exit-Unknown { param ([string]$message) if ($message) { Write-Host "UNKNOWN - $message" } exit 3 }
+
+# Ensures connection to the VBR server
+function Connect-VBRServerIfNeeded {
+    $vbrServer = "localhost"
+    $OpenConnection = (Get-VBRServerSession).Server
+
+    if ($OpenConnection -ne $vbrServer) {
+        Disconnect-VBRServer
+        Try {
+            Connect-VBRServer -server $vbrServer -ErrorAction Stop
+        } Catch {
+            Exit-Critical "Unable to connect to the VBR server."
+        }
+    }
+}
+
+#endregion
+
+#region Update Script
 $repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
 $scriptFileURL = "$repoURL/MVM_BackupConfig.ps1"
 $localScriptPath = $MyInvocation.MyCommand.Path
-#endregion
 
-#region Functions      
-    #region Fonction Get-VersionFromScript
-    function Get-VersionFromScript {
-        param (
-            [string]$scriptContent
-        )
-        # Recherche une ligne contenant '#Version X.Y.Z'
-        if ($scriptContent -match "# Version\s*:\s*([\d\.]+)") {
-            return $matches[1]
-        } else {
-            return $null
-        }
-    }
-    #endregion
-
-    #region Fonctions Exit NRPE
-    function Exit-OK {
-        param (
-            [string]$message
-        )
-
-        if ($message) {
-            Write-Host "OK - $message"
-        }
-        exit 0
-    }
-
-    function Exit-Warning {
-        param (
-            [string]$message
-        )
-
-        if ($message) {
-            Write-Host "WARNING - $message"
-        }
-        exit 1
-    }
-
-    function Exit-Critical {
-        param (
-            [string]$message
-        )
-
-        if ($message) {
-            Write-Host "CRITICAL - $message"
-        }
-        exit 2
-    }
-
-    function Exit-Unknown {
-        param (
-            [string]$message
-        )
-
-        if ($message) {
-            Write-Host "UNKNOWN - $message"
-        }
-        exit 3
-    }
-    #endregion
-#endregion
-
-#region Update 
-# --- Extraction de la version locale ---
+# Extract and compare versions to update the script if necessary
 $localScriptContent = Get-Content -Path $localScriptPath -Raw
-$localVersion = Get-VersionFromScript -scriptContent $localScriptContent
+$localVersion = Get-VersionFromScript -Content $localScriptContent
 
-# --- Récupération du script distant ---
-$remoteScriptContent = Invoke-RestMethod -Uri $scriptFileURL -Headers $headers -UseBasicParsing
+$remoteScriptContent = Invoke-RestMethod -Uri $scriptFileURL -UseBasicParsing
+$remoteVersion = Get-VersionFromScript -Content $remoteScriptContent
 
-# --- Extraction de la version distante ---
-$remoteVersion = Get-VersionFromScript -scriptContent $remoteScriptContent
-
-# --- Comparaison des versions et mise à jour ---
 if ($localVersion -ne $remoteVersion) {
     try {
-        # Écrase le script local avec le contenu distant
         $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
     } catch {
+        Write-Warning "Failed to update the script"
     }
 }
 #endregion
 
-#region Connect to VBR server
-$OpenConnection = (Get-VBRServerSession).Server
-If ($OpenConnection -ne $vbrServer){
-    Disconnect-VBRServer
-    Try {
-        Connect-VBRServer -server $vbrServer -ErrorAction Stop
-    } Catch {
-        Exit-Critical "Unable to connect to the VBR server."
-    exit
-    }
-}
+#region Connection to VBR Server
+Connect-VBRServerIfNeeded
 #endregion
 
 try {

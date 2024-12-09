@@ -1,9 +1,9 @@
 # ====================================================================
-# Auteur : Tiago DA SILVA - ATHEO INGENIERIE
-# Version : 1.0.0
-# Date de création : 2024-11-29
-# Dernière mise à jour : 2024-12-02
-# Dépôt GitHub : https://github.com/ATHEO-TDS/MyVeeamMonitoring
+# Author: Tiago DA SILVA - ATHEO INGENIERIE
+# Version: 1.0.1
+# Creation Date: 2024-11-29
+# Last Update: 2024-12-02
+# GitHub Repository: https://github.com/ATHEO-TDS/MyVeeamMonitoring
 # ====================================================================
 #
 #
@@ -11,148 +11,119 @@
 
 #region Parameters
 param (
-    [string]$ExcludedProxy
+    [string]$ExcludedProxy = ""
 )
 #endregion
 
-#region Update Configuration
-$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$remoteScriptURL = "$repoURL/MVM_Proxies.ps1"
-$localScriptPath = $MyInvocation.MyCommand.Path
+#region Validate Parameters
+# Validate that the parameters are non-empty if they are provided
+if ($ExcludedProxy -and $ExcludedProxy -notmatch "^[\w\.\,\s\*\-_]*$") {
+  Exit-Critical "Invalid parameter: 'ExcludedProxy' contains invalid characters. Please provide a comma-separated list of VM names."
+}
 #endregion
 
-#region Functions      
+#region Functions
 
-# Function to extract version from a script file
-function Get-ScriptVersion {
-    param (
-        [string]$ScriptContent
-    )
-    if ($ScriptContent -match "# Version\s*:\s*([\d\.]+)") {
-        return $matches[1]
-    } else {
-        return $null
-    }
+# Extracts the version from script content
+function Get-VersionFromScript {
+  param ([string]$Content)
+  if ($Content -match "# Version\s*:\s*([\d\.]+)") {
+      return $matches[1]
+  }
+  return $null
 }
 
-# Functions for NRPE-style exit codes
-function Exit-OK {
-    param ([string]$Message)
-    Write-Host "OK - $Message"
-    exit 0
-}
+# Functions for exit codes (OK, Warning, Critical, Unknown)
+function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
+function Exit-Warning { param ([string]$message) if ($message) { Write-Host "WARNING - $message" } exit 1 }
+function Exit-Critical { param ([string]$message) if ($message) { Write-Host "CRITICAL - $message" } exit 2 }
+function Exit-Unknown { param ([string]$message) if ($message) { Write-Host "UNKNOWN - $message" } exit 3 }
 
-function Exit-Warning {
-    param ([string]$Message)
-    Write-Host "WARNING - $Message"
-    exit 1
-}
+# Ensures connection to the VBR server
+function Connect-VBRServerIfNeeded {
+  $vbrServer = "localhost"
+  $OpenConnection = (Get-VBRServerSession).Server
 
-function Exit-Critical {
-    param ([string]$Message)
-    Write-Host "CRITICAL - $Message"
-    exit 2
-}
-
-function Exit-Unknown {
-    param ([string]$Message)
-    Write-Host "UNKNOWN - $Message"
-    exit 3
+  if ($OpenConnection -ne $vbrServer) {
+      Disconnect-VBRServer
+      Try {
+          Connect-VBRServer -server $vbrServer -ErrorAction Stop
+      } Catch {
+          Exit-Critical "Unable to connect to the VBR server."
+      }
+  }
 }
 
 # Function to Get Proxy Informations
 Function Get-VBRProxyInfo {
-    [CmdletBinding()]
-    param (
+  [CmdletBinding()]
+  param (
       [Parameter(Position=0, ValueFromPipeline=$true)]
       [PSObject[]]$Proxy
-    )
-    Begin {
-      $outputAry = @()  # Crée un tableau vide pour les résultats
-      Function Add-Object {
-        param ([PsObject]$inputObj)
-        $ping = New-Object system.net.networkinformation.ping
-        $isIP = '\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b'
-        If ($inputObj.Host.Name -match $isIP) {
-          $IPv4 = $inputObj.Host.Name
-        } Else {
-          $DNS = [Net.DNS]::GetHostEntry("$($inputObj.Host.Name)")
-          $IPv4 = ($DNS.get_AddressList() | Where-Object {$_.AddressFamily -eq "InterNetwork"} | Select-Object -First 1).IPAddressToString
-        }
-        $pinginfo = $ping.send("$($IPv4)")
-        If ($pinginfo.Status -eq "Success") {
-          $hostAlive = "Alive"
-          $response = $pinginfo.RoundtripTime
-        } Else {
-          $hostAlive = "Dead"
-          $response = $null
-        }
-        If ($inputObj.IsDisabled) {
-          $enabled = "False"
-        } Else {
-          $enabled = "True"
-        }
-        $vPCFuncObject = New-Object PSObject -Property @{
-          Name = $inputObj.Name
-          Status  = $hostAlive
-          IP = $IPv4
-          Response = $response
-          Enabled = $enabled
-        }
-        Return $vPCFuncObject
-      }
-    }
-    Process {
+  )
+
+  process {
       foreach ($p in $Proxy) {
-        $outputObj = Add-Object $p
-        $outputAry += $outputObj  # Ajoute l'objet au tableau
+          $IPv4 = if ($p.Host.Name -match '\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b') {
+              $p.Host.Name
+          } else {
+              [Net.DNS]::GetHostEntry($p.Host.Name).AddressList | 
+                  Where-Object { $_.AddressFamily -eq "InterNetwork" } | 
+                  Select-Object -First 1 | 
+                  ForEach-Object { $_.IPAddressToString }
+          }
+
+          $pingInfo = (New-Object system.net.networkinformation.ping).send($IPv4)
+          $hostAlive = if ($pingInfo.Status -eq "Success") { "Alive" } else { "Dead" }
+          $response = if ($hostAlive -eq "Alive") { $pingInfo.RoundtripTime } else { $null }
+
+          [PSCustomObject]@{
+              Name     = $p.Name
+              Status   = $hostAlive
+              IP       = $IPv4
+              Response = $response
+              Enabled  = if ($p.IsDisabled) { "False" } else { "True" }
+          }
       }
-    }
-    End {
-      return $outputAry  # Retourne un tableau d'objets
-    }
+  }
 }
+
 #endregion
 
-#region Script Update
-# Fetch local script version
+#region Update Script
+$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
+$scriptFileURL = "$repoURL/MVM_Proxies.ps1"
+$localScriptPath = $MyInvocation.MyCommand.Path
+
+# Extract and compare versions to update the script if necessary
 $localScriptContent = Get-Content -Path $localScriptPath -Raw
-$localVersion = Get-ScriptVersion -ScriptContent $localScriptContent
+$localVersion = Get-VersionFromScript -Content $localScriptContent
 
-# Fetch remote script version
-$remoteScriptContent = Invoke-RestMethod -Uri $remoteScriptURL -UseBasicParsing
-$remoteVersion = Get-ScriptVersion -ScriptContent $remoteScriptContent
+$remoteScriptContent = Invoke-RestMethod -Uri $scriptFileURL -UseBasicParsing
+$remoteVersion = Get-VersionFromScript -Content $remoteScriptContent
 
-# Update script if versions differ
 if ($localVersion -ne $remoteVersion) {
     try {
         $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
     } catch {
+        Write-Warning "Failed to update the script"
     }
 }
+#endregion
+
+#region Connection to VBR Server
+Connect-VBRServerIfNeeded
 #endregion
 
 #region Variables
-$vbrServer = "localhost"
 $excludedProxyArray = $ExcludedProxy -split ','
 #endregion
 
-#region Connect to VBR Server
-if ((Get-VBRServerSession).Server -ne $vbrServer) {
-    Disconnect-VBRServer
-    try {
-        Connect-VBRServer -Server $vbrServer -ErrorAction Stop
-    } catch {
-        Exit-Critical "Unable to connect to VBR server."
-    }
-}
-#endregion
+try {
+  # Retrieve proxies informations
+  $proxyList = @(Get-VBRViProxy | Get-VBRProxyInfo)
 
-#region Data Collection
-
-$proxyList = @(Get-VBRViProxy | Get-VBRProxyInfo)
-
-If ($proxyList.count -gt 0) {
+  If ($proxyList.count -gt 0) {
     $excludeProxy_regex = ('(?i)^(' + (($excludedProxyArray | ForEach-Object {[regex]::escape($_)}) -join "|") + ')$') -replace "\\\*", ".*"
     $filteredProxyList = $proxyList | Where-Object {$_.Name -notmatch $excludeProxy_regex}
     $aliveProxy = $filteredProxyList | Where-Object {$_.Status -eq "Alive"}
@@ -165,8 +136,10 @@ If ($proxyList.count -gt 0) {
     }else {
         Exit-Ok "All the listed proxies are alive: $outputOk"
     }
-
-}Else{
+    
+  }Else{
     Exit-Unknown "No proxy found"
-
+}
+}Catch{
+  Exit-Critical "An error occurred: $_"
 }
