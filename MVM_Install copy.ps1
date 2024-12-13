@@ -147,13 +147,13 @@ Write-Host "Fichier téléchargé avec succès : $OutputFile"
 
 # Installe le MSI
 Write-Host "Démarrage de l'installation de snclient.msi..."
-$MsiexecCommand = @"
-msiexec.exe /i "$OutputFile" /l*V "$LogFile" /qn INCLUDES="$IniFile" ALLOWEDHOSTS="$AllowedHosts" WEBSERVER=0 WEBSERVERSSL=0 NRPESERVER=1
-"@
-Invoke-Expression $MsiexecCommand
+Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$OutputFile`" /l*V `"$LogFile`" /qn INCLUDES=`"$IniFile`" ALLOWEDHOSTS=`"$AllowedHosts`" WEBSERVER=0 WEBSERVERSSL=0 NRPESERVER=1" -Wait
+Write-Host "Installation terminée avec succès, fichiers de logs : $LogFile"
 
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Installation terminée avec succès."
-} else {
-    Write-Error "Erreur lors de l'installation. Consultez le journal : $LogFile"
-}
+
+
+CHANGER LES PARAMETRES DANS LE FICHIER ini UPDATE ECT
+TACHE PLANIFIER POUR UPDATE .INI 
+REGLE FW
+OPTION INSTALL NRPE OR WINRM
+OPTION JUSTE DL SCRIPTS
