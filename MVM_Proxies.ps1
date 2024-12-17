@@ -90,27 +90,6 @@ Function Get-VBRProxyInfo {
 
 #endregion
 
-#region Update Script
-$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$scriptFileURL = "$repoURL/MVM_Proxies.ps1"
-$localScriptPath = $MyInvocation.MyCommand.Path
-
-# Extract and compare versions to update the script if necessary
-$localScriptContent = Get-Content -Path $localScriptPath -Raw
-$localVersion = Get-VersionFromScript -Content $localScriptContent
-
-$remoteScriptContent = Invoke-RestMethod -Uri $scriptFileURL -UseBasicParsing
-$remoteVersion = Get-VersionFromScript -Content $remoteScriptContent
-
-if ($localVersion -ne $remoteVersion) {
-    try {
-        $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
-    } catch {
-        Write-Warning "Failed to update the script"
-    }
-}
-#endregion
-
 #region Connection to VBR Server
 Connect-VBRServerIfNeeded
 #endregion

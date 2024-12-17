@@ -30,16 +30,6 @@ if ($Critical -le 0 -or $Warning -le 0) {
 #endregion
 
 #region Functions
-
-# Extracts the version from script content
-function Get-VersionFromScript {
-    param ([string]$Content)
-    if ($Content -match "# Version\s*:\s*([\d\.]+)") {
-        return $matches[1]
-    }
-    return $null
-}
-
 # Functions for exit codes (OK, Warning, Critical, Unknown)
 function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
 function Exit-Warning { param ([string]$message) if ($message) { Write-Host "WARNING - $message" } exit 1 }
@@ -85,27 +75,6 @@ Function Get-VeeamSupportDate {
         LicType    = $type
         ExpDate    = if ($date) { $date.ToShortDateString() } else { "No Expiration" }
         DaysRemain = if ($date) { ($date - (Get-Date)).Days } else { "Unlimited" }
-    }
-}
-#endregion
-
-#region Update Script
-$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$scriptFileURL = "$repoURL/MVM_License.ps1"
-$localScriptPath = $MyInvocation.MyCommand.Path
-
-# Extract and compare versions to update the script if necessary
-$localScriptContent = Get-Content -Path $localScriptPath -Raw
-$localVersion = Get-VersionFromScript -Content $localScriptContent
-
-$remoteScriptContent = Invoke-RestMethod -Uri $scriptFileURL -UseBasicParsing
-$remoteVersion = Get-VersionFromScript -Content $remoteScriptContent
-
-if ($localVersion -ne $remoteVersion) {
-    try {
-        $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
-    } catch {
-        Write-Warning "Failed to update the script"
     }
 }
 #endregion

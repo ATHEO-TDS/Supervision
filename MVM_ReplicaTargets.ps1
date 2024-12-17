@@ -29,16 +29,6 @@ if ($ExcludedTargets -and $ExcludedTargets -notmatch "^[\w\.\,\s\*\-_]*$") {
 #endregion
 
 #region Functions
-
-# Extracts the version from script content
-function Get-VersionFromScript {
-    param ([string]$Content)
-    if ($Content -match "# Version\s*:\s*([\d\.]+)") {
-        return $matches[1]
-    }
-    return $null
-}
-
 # Functions for exit codes (OK, Warning, Critical, Unknown)
 function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
 function Exit-Warning { param ([string]$message) if ($message) { Write-Host "WARNING - $message" } exit 1 }
@@ -108,27 +98,6 @@ Function Get-VBRReplicaTarget {
     END {
         # Return the output
         $outputAry | Select-Object Datastore, StorageFree, StorageUsed, StorageTotal, FreePercentage, UsedPercentage
-    }
-}
-#endregion
-
-#region Update Script
-$repoURL = "https://raw.githubusercontent.com/ATHEO-TDS/MyVeeamMonitoring/main"
-$scriptFileURL = "$repoURL/MVM_ReplicaSessions.ps1"
-$localScriptPath = $MyInvocation.MyCommand.Path
-
-# Extract and compare versions to update the script if necessary
-$localScriptContent = Get-Content -Path $localScriptPath -Raw
-$localVersion = Get-VersionFromScript -Content $localScriptContent
-
-$remoteScriptContent = Invoke-RestMethod -Uri $scriptFileURL -UseBasicParsing
-$remoteVersion = Get-VersionFromScript -Content $remoteScriptContent
-
-if ($localVersion -ne $remoteVersion) {
-    try {
-        $remoteScriptContent | Set-Content -Path $localScriptPath -Encoding UTF8 -Force
-    } catch {
-        Write-Warning "Failed to update the script"
     }
 }
 #endregion
