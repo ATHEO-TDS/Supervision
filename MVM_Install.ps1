@@ -10,11 +10,15 @@ param (
     [ValidateNotNullOrEmpty()]
     [string]$InstallDir = "C:\Program Files\snclient",
 
-    [ValidatePattern("^(?:(?:\d{1,3}\.){3}\d{1,3}|localhost)$", ErrorMessage = "Invalid IP address format.")]
+    [ValidatePattern("^(?:(?:\d{1,3}\.){3}\d{1,3}|localhost)$")]
     [string]$AllowedHosts = "127.0.0.1"  # Monitoring box IP
 )
 
-# Validate Parameters (Region reserved for validation logic, if needed)
+#region Validate Parameters
+if (-not ($AllowedHosts -match "^(?:(?:\d{1,3}\.){3}\d{1,3}|localhost)$")) {
+    throw "Invalid IP address format for AllowedHosts: '$AllowedHosts'. Please use a valid IP or 'localhost'."
+}
+#endregion
 
 $RepoURL = "https://github.com/ATHEO-TDS/MyVeeamMonitoring"
 
@@ -106,27 +110,17 @@ if ($null -eq $Asset) {
 # Download URL
 $DownloadURL = $Asset.browser_download_url
 $OutputFile = Join-Path -Path $InstallDir -ChildPath $Asset.name
-
-# Check if MSI is already installed
-$InstalledApps = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -eq "SNClient" }
-if ($null -eq $InstalledApps) {
-    Write-Host "SNClient is not installed. Proceeding with installation."
     
-    # Download the MSI file
-    Write-Host "Downloading $($Asset.name)..."
-    Invoke-WebRequest -Uri $DownloadURL -OutFile $OutputFile
-    Write-Host "File downloaded successfully: $OutputFile"
+# Download the MSI file
+Write-Host "Downloading $($Asset.name)..."
+Invoke-WebRequest -Uri $DownloadURL -OutFile $OutputFile
+Write-Host "File downloaded successfully: $OutputFile"
 
-    # Install the MSI
-    Write-Host "Starting installation of snclient.msi..."
-    Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$OutputFile`" /l*V `"$LogFile`" /qn INCLUDES=`"$IniFile`" ALLOWEDHOSTS=`"$AllowedHosts`" WEBSERVER=0 WEBSERVERSSL=0 NRPESERVER=1" -Wait
-    Write-Host "Installation completed successfully, log files: $LogFile"
-} else {
-    Write-Host "SNClient is already installed. Skipping installation."
-    Write-Host "Restarting SNClient services..."
-    Restart-Service -Name "snclient"
-    Write-Host "SNClient services restarted."
-}
+# Install the MSI
+Write-Host "Starting installation of snclient.msi..."
+Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$OutputFile`" /l*V `"$LogFile`" /qn INCLUDES=`"$IniFile`" ALLOWEDHOSTS=`"$AllowedHosts`" WEBSERVER=0 WEBSERVERSSL=0 NRPESERVER=1" -Wait
+Write-Host "Installation completed successfully, log files: $LogFile"
+
 
 # Configure the scheduled task
 $TaskName = "MVM - Update scripts"
@@ -148,14 +142,14 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
     $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount
 
     # Register the scheduled task with a description
-    Register-ScheduledTask -TaskName $TaskName -Trigger $Trigger -Action $Action -Principal $Principal -Description $Description
+    Register-ScheduledTask -TaskName $TaskName -Trigger $Trigger -Action $Action -Principal $Principal -Description $Description | Out-Null
 
     Write-Host "The task '$TaskName' has been successfully created and will run daily at $TriggerTime."
 }
 
 # Create a firewall rule to allow NRPE traffic
 if (-not (Get-NetFirewallRule -DisplayName "Allow NRPE From Monitoring" -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -DisplayName "Allow NRPE From Monitoring" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5666 -RemoteAddress $AllowedHosts -Profile Any
+    New-NetFirewallRule -DisplayName "Allow NRPE From Monitoring" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5666 -RemoteAddress $AllowedHosts -Profile Any | Out-Null
     Write-Host "Firewall rule created successfully."
 } else {
     Write-Host "Firewall rule 'Allow NRPE From Monitoring' already exists. Skipping creation."
