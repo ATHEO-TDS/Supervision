@@ -32,7 +32,7 @@ function Exit-Unknown { param ([string]$message) if ($message) { Write-Host "UNK
 # Ensures connection to the VBR server
 function Connect-VBRServerIfNeeded {
     $vbrServer = "localhost"
-    $credentialPath = ".\key.xml"
+    $credentialPath = ".\scripts\MyVeeamMonitoring\key.xml"
     
     $OpenConnection = (Get-VBRServerSession).Server
     

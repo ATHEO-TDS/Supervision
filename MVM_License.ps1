@@ -39,7 +39,7 @@ function Exit-Unknown { param ([string]$message) if ($message) { Write-Host "UNK
 # Ensures connection to the VBR server
 function Connect-VBRServerIfNeeded {
     $vbrServer = "localhost"
-    $credentialPath = ".\key.xml"
+    $credentialPath = ".\scripts\MyVeeamMonitoring\key.xml"
     $OpenConnection = (Get-VBRServerSession).Server
     if ($OpenConnection -ne $vbrServer) {
         Disconnect-VBRServer
@@ -113,6 +113,6 @@ try {
         "Critical"  { Exit-Critical "Support License Days Remaining: $($licenseInf.DaysRemain)." }
         default     { Exit-Critical "Support License is expired or in an invalid state." }
     }
-}Catch{
-    Exit-Critical "An error occurred: $_"
+}Catch {
+    Exit-Critical "An error occurred: $($_.Exception.Message)"
 }
