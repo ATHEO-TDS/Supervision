@@ -37,7 +37,7 @@ function Exit-Unknown { param ([string]$message) if ($message) { Write-Host "UNK
 # Ensures connection to the VBR server
 function Connect-VBRServerIfNeeded {
     $vbrServer = "localhost"
-    .\key.xml"
+    $credentialPath = ".\key.xml"
     
     $OpenConnection = (Get-VBRServerSession).Server
     

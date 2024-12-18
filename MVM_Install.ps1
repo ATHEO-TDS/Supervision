@@ -154,7 +154,7 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
 }
 
 # Define the path to the credential XML file
-.\key.xml"
+$credentialPath = ".\key.xml"
 
 # If authentication is needed, prompt for credentials and save them to the XML file
 if ($AuthNeeded) {
