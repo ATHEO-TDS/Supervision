@@ -11,7 +11,10 @@ param (
     [string]$InstallDir = "C:\Program Files\snclient",
 
     [ValidatePattern("^(?:(?:\d{1,3}\.){3}\d{1,3}|localhost)$")]
-    [string]$AllowedHosts = "127.0.0.1"  # Monitoring box IP
+    [string]$AllowedHosts = "127.0.0.1",  # Monitoring box IP
+
+    [ValidateSet("True", "False")]
+    [Boolean]$AuthNeeded
 )
 
 #region Validate Parameters
@@ -150,10 +153,20 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
     Write-Host "The task '$TaskName' has been successfully created and will run daily at $TriggerTime."
 }
 
-# Create a firewall rule to allow NRPE traffic
-if (-not (Get-NetFirewallRule -DisplayName "Allow NRPE From Monitoring" -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -DisplayName "Allow NRPE From Monitoring" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 5666 -RemoteAddress $AllowedHosts -Profile Any | Out-Null
-    Write-Host "Firewall rule created successfully."
+# Define the path to the credential XML file
+$credentialPath = "$InstallDir\scripts\MyVeeamMonitoring\key.xml"
+
+# If authentication is needed, prompt for credentials and save them to the XML file
+if ($AuthNeeded) {
+    try {
+        Write-Host "Authentication is needed. Please provide credentials."
+        $credential = Get-Credential
+        $credential | Export-Clixml -Path $credentialPath
+        Write-Host "Credentials have been saved to $credentialPath."
+    } catch {
+        Write-Error "Failed to save credentials. Error: $_"
+        Exit 1
+    }
 } else {
-    Write-Host "Firewall rule 'Allow NRPE From Monitoring' already exists. Skipping creation."
+    Write-Host "Authentication is not needed. Skipping credential storage."
 }
