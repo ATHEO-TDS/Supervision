@@ -11,7 +11,8 @@
 
 #region Parameters
 param (
-    [int]$RPO = 24 # Recovery Point Objective (hours)
+    [int]$RPO = 24, # Recovery Point Objective (hours)
+    [string]$ExcludedJob = ""
 )
 #endregion
 
@@ -64,6 +65,7 @@ Connect-VBRServerIfNeeded
 #endregion
 
 #region Variables
+$excludedJobArray = $ExcludeJob -split ','
 $sessListTp = @()
 $criticalSessions = @()
 $warningSessions = @()
@@ -76,7 +78,7 @@ try {
     $allJobsTp = Get-VBRTapeJob
 
     if ($allJobsTp) {
-        $sessListTp = $allJobsTp | ForEach-Object {[veeam.backup.core.cbackupsession]::GetByJob($_.Id)} | Where-Object {
+        $sessListTp = $allJobsTp | ForEach-Object {[veeam.backup.core.cbackupsession]::GetByJob($_.Id)} | Where-Object { -not ($_.JobName -in $excludedJobArray) } | Where-Object {
             $_.EndTime -ge (Get-Date).AddHours(-$RPO) -or 
             $_.CreationTime -ge (Get-Date).AddHours(-$RPO) -or 
             $_.State -match "Working|Idle"

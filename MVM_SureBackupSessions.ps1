@@ -11,7 +11,8 @@
 
 #region Parameters
 param (
-    [int]$RPO = 24 # Recovery Point Objective (hours)
+    [int]$RPO = 24, # Recovery Point Objective (hours)
+    [string]$ExcludedJob = ""
 )
 #endregion
 
@@ -64,6 +65,7 @@ Connect-VBRServerIfNeeded
 #endregion
 
 #region Variables
+$excludedJobArray = $ExcludeJob -split ','
 $criticalSessions = @()
 $warningSessions = @()
 $allSessionDetails = @()
@@ -72,7 +74,7 @@ $statusMessage = ""
 
 try {
     # Get all surebackup sessions
-    $sessListSb = Get-VBRSureBackupSession | Where-Object {$_.EndTime -ge (Get-Date).AddHours(-$RPO) -or $_.CreationTime -ge (Get-Date).AddHours(-$RPO) -or $_.State -ne "Stopped"} | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object EndTime -Descending | Select-Object -First 1}
+    $sessListSb = Get-VBRSureBackupSession | Where-Object { -not ($_.JobName -in $excludedJobArray) } | Where-Object {$_.EndTime -ge (Get-Date).AddHours(-$RPO) -or $_.CreationTime -ge (Get-Date).AddHours(-$RPO) -or $_.State -ne "Stopped"} | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object EndTime -Descending | Select-Object -First 1}
 
     if (-not $sessListSb) {
         Exit-Unknown "No surebackup session found."

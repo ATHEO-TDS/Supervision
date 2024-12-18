@@ -17,7 +17,8 @@
 
 #region Parameters
 param (
-    [int]$RPO = 24 # Recovery Point Objective (hours)
+    [int]$RPO = 24, # Recovery Point Objective (hours)
+    [string]$ExcludedJob = ""
 )
 #endregion
 
@@ -92,6 +93,7 @@ Connect-VBRServerIfNeeded
 #endregion
 
 #region Variables
+$excludedJobArray = $ExcludeJob -split ','
 $criticalSessions = @()
 $warningSessions = @()
 $allSessionDetails = @()
@@ -100,7 +102,7 @@ $statusMessage = ""
 
 try {
     # Retrieve all backup sessions
-    $sessListBk = GetVBRBackupSession | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object SessionEndTime -Descending | Select-Object -First 1}
+    $sessListBk = GetVBRBackupSession | Where-Object { -not ($_.JobName -in $excludedJobArray) } | Group-Object JobName | ForEach-Object { $_.Group | Sort-Object SessionEndTime -Descending | Select-Object -First 1}
 
     if (-not $sessListBk) {
         Exit-Unknown "No backup session found."

@@ -15,7 +15,8 @@
 
 #region Parameters
 param (
-    [int]$RPO = 24 # Recovery Point Objective (hours)
+    [int]$RPO = 24, # Recovery Point Objective (hours)
+    [string]$ExcludedJob = ""
 )
 #endregion
 
@@ -68,6 +69,7 @@ Connect-VBRServerIfNeeded
 #endregion
 
 #region Variables
+$excludedJobArray = $ExcludedJob -split ','
 $criticalSessions = @()
 $warningSessions = @()
 $allSessionDetails = @()
@@ -77,7 +79,7 @@ $statusMessage = ""
 try {
     # Retrieve all agent backup sessions
     $sessListEp = Get-VBRComputerBackupJobSession | Where-Object {
-        ($_.EndTime -ge (Get-Date).AddHours(-$RPO) -or $_.CreationTime -ge (Get-Date).AddHours(-$RPO) -or $_.State -eq "Working")
+        ($_.EndTime -ge (Get-Date).AddHours(-$RPO) -or $_.CreationTime -ge (Get-Date).AddHours(-$RPO) -or $_.State -eq "Working") -and -not ($_.JobName -in $excludedJobArray)
     } | Group-Object JobName | ForEach-Object {
         $_.Group | Sort-Object EndTime -Descending | Select-Object -First 1
     }
