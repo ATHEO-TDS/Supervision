@@ -37,14 +37,28 @@ function Exit-Unknown { param ([string]$message) if ($message) { Write-Host "UNK
 # Ensures connection to the VBR server
 function Connect-VBRServerIfNeeded {
     $vbrServer = "localhost"
+    $credentialPath = "$InstallDir\scripts\MyVeeamMonitoring\key.xml"
+    
     $OpenConnection = (Get-VBRServerSession).Server
-
+    
     if ($OpenConnection -ne $vbrServer) {
         Disconnect-VBRServer
-        Try {
-            Connect-VBRServer -server $vbrServer -ErrorAction Stop
-        } Catch {
-            Exit-Critical "Unable to connect to the VBR server."
+        
+        if (Test-Path $credentialPath) {
+            # Load credentials from the XML file
+            try {
+                $credential = Import-Clixml -Path $credentialPath
+                Connect-VBRServer -server $vbrServer -Credential $credential -ErrorAction Stop
+            } Catch {
+                Exit-Critical "Unable to load credentials from the XML file."
+            }
+        } else {
+            # Connect without credentials
+            try {
+                Connect-VBRServer -server $vbrServer -ErrorAction Stop
+            } Catch {
+                Exit-Critical "Unable to connect to the VBR server."
+            }
         }
     }
 }

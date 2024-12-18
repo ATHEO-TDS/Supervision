@@ -122,9 +122,9 @@ Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$OutputFile`" /l*V `"$
 Write-Host "Installation completed successfully, log files: $LogFile"
 
 
-# Configure the scheduled task
+## Configure the scheduled task
 $TaskName = "MVM - Update scripts"
-$ScriptPath = "$InstallDir\scripts\MVM_Update.ps1"
+$ScriptPath = "$InstallDir\scripts\MyVeeamMonitoring\MVM_Update.ps1"
 $TriggerTime = "12:00:00"
 $Description = "Scheduled Task to run the script which updates MVM Scripts and Ini File"
 
@@ -136,13 +136,16 @@ if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
     $Trigger = New-ScheduledTaskTrigger -Daily -At $TriggerTime
 
     # Define the action to execute PowerShell with the script
-    $Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -InstallDir $InstallDir"
+    $Action = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -InstallDir `"$InstallDir`""
 
     # Set the task to run as SYSTEM
-    $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount
+    $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+    # Définir les paramètres, incluant une limite de temps d'exécution de 1 heure
+    $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1)
 
     # Register the scheduled task with a description
-    Register-ScheduledTask -TaskName $TaskName -Trigger $Trigger -Action $Action -Principal $Principal -Description $Description | Out-Null
+    Register-ScheduledTask -TaskName $TaskName -Trigger $Trigger -Action $Action -Principal $Principal -Settings $Settings -Description $Description  | Out-Null
 
     Write-Host "The task '$TaskName' has been successfully created and will run daily at $TriggerTime."
 }
