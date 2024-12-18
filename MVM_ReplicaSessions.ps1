@@ -14,13 +14,6 @@ param (
     [int]$RPO = 24 # Recovery Point Objective (hours)
 )
 #endregion
-
-#region Validate Parameters
-# Validate the $RPO parameter to ensure it's a positive integer
-if ($RPO -lt 1) {
-    Exit-Critical "Invalid parameter: 'RPO' must be greater than or equal to 1 hour. Please provide a valid value."
-}
-#endregion
    
 #region Functions
 # Functions for exit codes (OK, Warning, Critical, Unknown)
@@ -78,6 +71,13 @@ function GetVBRBackupSession {
         }  
         New-Object PSObject -Property $sessionProps 
     }
+}
+#endregion
+
+#region Validate Parameters
+# Validate the $RPO parameter to ensure it's a positive integer
+if ($RPO -lt 1) {
+    Exit-Critical "Invalid parameter: 'RPO' must be greater than or equal to 1 hour. Please provide a valid value."
 }
 #endregion
 

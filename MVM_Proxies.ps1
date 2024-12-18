@@ -15,13 +15,6 @@ param (
 )
 #endregion
 
-#region Validate Parameters
-# Validate that the parameters are non-empty if they are provided
-if ($ExcludedProxy -and $ExcludedProxy -notmatch "^[\w\.\,\s\*\-_]*$") {
-  Exit-Critical "Invalid parameter: 'ExcludedProxy' contains invalid characters. Please provide a comma-separated list of VM names."
-}
-#endregion
-
 #region Functions
 
 # Extracts the version from script content
@@ -88,6 +81,13 @@ Function Get-VBRProxyInfo {
   }
 }
 
+#endregion
+
+#region Validate Parameters
+# Validate that the parameters are non-empty if they are provided
+if ($ExcludedProxy -and $ExcludedProxy -notmatch "^[\w\.\,\s\*\-_]*$") {
+  Exit-Critical "Invalid parameter: 'ExcludedProxy' contains invalid characters. Please provide a comma-separated list of VM names."
+}
 #endregion
 
 #region Connection to VBR Server

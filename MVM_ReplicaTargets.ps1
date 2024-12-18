@@ -17,17 +17,6 @@ param (
 )
 #endregion
 
-#region Validate Parameters
-# Validate that the Critical threshold is greater than the Warning threshold
-if ($Critical -le $Warning) {
-    Exit-Critical "Invalid parameter: Critical threshold ($Critical) must be greater than Warning threshold ($Warning)."
-}
-# Validate that the parameters are non-empty if they are provided
-if ($ExcludedTargets -and $ExcludedTargets -notmatch "^[\w\.\,\s\*\-_]*$") {
-    Exit-Critical "Invalid parameter: 'ExcludedTargets' contains invalid characters. Please provide a comma-separated list of VM names."
-  }
-#endregion
-
 #region Functions
 # Functions for exit codes (OK, Warning, Critical, Unknown)
 function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
@@ -114,6 +103,17 @@ Function Get-VBRReplicaTarget {
         $outputAry | Select-Object Datastore, StorageFree, StorageUsed, StorageTotal, FreePercentage, UsedPercentage
     }
 }
+#endregion
+
+#region Validate Parameters
+# Validate that the Critical threshold is greater than the Warning threshold
+if ($Critical -le $Warning) {
+    Exit-Critical "Invalid parameter: Critical threshold ($Critical) must be greater than Warning threshold ($Warning)."
+}
+# Validate that the parameters are non-empty if they are provided
+if ($ExcludedTargets -and $ExcludedTargets -notmatch "^[\w\.\,\s\*\-_]*$") {
+    Exit-Critical "Invalid parameter: 'ExcludedTargets' contains invalid characters. Please provide a comma-separated list of VM names."
+  }
 #endregion
 
 #region Connection to VBR Server

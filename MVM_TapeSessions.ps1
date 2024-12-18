@@ -15,13 +15,6 @@ param (
 )
 #endregion
 
-#region Validate Parameters
-# Validate the $RPO parameter to ensure it's a positive integer
-if ($RPO -lt 1) {
-    Exit-Critical "Invalid parameter: 'RPO' must be greater than or equal to 1 hour. Please provide a valid value."
-}
-#endregion
-
 #region Functions
 # Functions for exit codes (OK, Warning, Critical, Unknown)
 function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
@@ -56,6 +49,13 @@ function Connect-VBRServerIfNeeded {
             }
         }
     }
+}
+#endregion
+
+#region Validate Parameters
+# Validate the $RPO parameter to ensure it's a positive integer
+if ($RPO -lt 1) {
+    Exit-Critical "Invalid parameter: 'RPO' must be greater than or equal to 1 hour. Please provide a valid value."
 }
 #endregion
 

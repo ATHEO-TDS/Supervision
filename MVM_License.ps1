@@ -19,16 +19,6 @@ param (
 )
 #endregion
 
-#region Validate Parameters
-if ($Warning -le $Critical) {
-    Exit-Critical "Invalid parameter values: 'Warning' must be greater than 'Critical'. Please ensure that 'Warning' > 'Critical'."
-}
-
-if ($Critical -le 0 -or $Warning -le 0) {
-    Exit-Critical "Invalid parameter values: Both 'Warning' and 'Critical' must be greater than 0. Please provide valid values for both."
-}
-#endregion
-
 #region Functions
 # Functions for exit codes (OK, Warning, Critical, Unknown)
 function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
@@ -87,6 +77,16 @@ Function Get-VeeamSupportDate {
         ExpDate    = if ($date) { $date.ToShortDateString() } else { "No Expiration" }
         DaysRemain = if ($date) { ($date - (Get-Date)).Days } else { "Unlimited" }
     }
+}
+#endregion
+
+#region Validate Parameters
+if ($Warning -le $Critical) {
+    Exit-Critical "Invalid parameter values: 'Warning' must be greater than 'Critical'. Please ensure that 'Warning' > 'Critical'."
+}
+
+if ($Critical -le 0 -or $Warning -le 0) {
+    Exit-Critical "Invalid parameter values: Both 'Warning' and 'Critical' must be greater than 0. Please provide valid values for both."
 }
 #endregion
 

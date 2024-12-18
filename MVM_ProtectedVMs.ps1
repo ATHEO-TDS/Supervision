@@ -34,29 +34,6 @@ param (
 )
 #endregion
 
-#region Validate Parameters
-if ($RPO -lt 1) {
-    Exit-Critical "Invalid parameter: 'RPO' must be greater than or equal to 1 hour. Please provide a valid value."
-}
-
-# Validate that the parameters are non-empty if they are provided
-if ($ExcludedVMs -and $ExcludedVMs -notmatch "^[\w\.\,\s\*\-_]*$") {
-    Exit-Critical "Invalid parameter: 'ExcludedVMs' contains invalid characters. Please provide a comma-separated list of VM names."
-}
-if ($ExcludedFolders -and $ExcludedFolders -notmatch "^[\w\.\,\s\*\-_]*$") {
-    Exit-Critical "Invalid parameter: 'ExcludedFolders' contains invalid characters. Please provide a comma-separated list of folder names."
-}
-if ($ExcludedTags -and $ExcludedTags -notmatch "^[\w\.\,\s\*\-_]*$") {
-    Exit-Critical "Invalid parameter: 'ExcludedTags' contains invalid characters. Please provide a comma-separated list of tag names."
-}
-if ($ExcludedClusters -and $ExcludedClusters -notmatch "^[\w\.\,\s\*\-_]*$") {
-    Exit-Critical "Invalid parameter: 'ExcludedClusters' contains invalid characters. Please provide a comma-separated list of cluster names."
-}
-if ($ExcludedDataCenters -and $ExcludedDataCenters -notmatch "^[\w\.\,\s\*\-_]*$") {
-    Exit-Critical "Invalid parameter: 'ExcludedDataCenters' contains invalid characters. Please provide a comma-separated list of data center names."
-}
-#endregion
-
 #region Functions
 # Functions for exit codes (OK, Warning, Critical, Unknown)
 function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
@@ -91,6 +68,29 @@ function Connect-VBRServerIfNeeded {
             }
         }
     }
+}
+#endregion
+
+#region Validate Parameters
+if ($RPO -lt 1) {
+    Exit-Critical "Invalid parameter: 'RPO' must be greater than or equal to 1 hour. Please provide a valid value."
+}
+
+# Validate that the parameters are non-empty if they are provided
+if ($ExcludedVMs -and $ExcludedVMs -notmatch "^[\w\.\,\s\*\-_]*$") {
+    Exit-Critical "Invalid parameter: 'ExcludedVMs' contains invalid characters. Please provide a comma-separated list of VM names."
+}
+if ($ExcludedFolders -and $ExcludedFolders -notmatch "^[\w\.\,\s\*\-_]*$") {
+    Exit-Critical "Invalid parameter: 'ExcludedFolders' contains invalid characters. Please provide a comma-separated list of folder names."
+}
+if ($ExcludedTags -and $ExcludedTags -notmatch "^[\w\.\,\s\*\-_]*$") {
+    Exit-Critical "Invalid parameter: 'ExcludedTags' contains invalid characters. Please provide a comma-separated list of tag names."
+}
+if ($ExcludedClusters -and $ExcludedClusters -notmatch "^[\w\.\,\s\*\-_]*$") {
+    Exit-Critical "Invalid parameter: 'ExcludedClusters' contains invalid characters. Please provide a comma-separated list of cluster names."
+}
+if ($ExcludedDataCenters -and $ExcludedDataCenters -notmatch "^[\w\.\,\s\*\-_]*$") {
+    Exit-Critical "Invalid parameter: 'ExcludedDataCenters' contains invalid characters. Please provide a comma-separated list of data center names."
 }
 #endregion
 
