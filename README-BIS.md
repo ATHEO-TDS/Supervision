@@ -34,4 +34,4 @@ Ce script permet de surveiller les tâches de copie de sauvegarde dans **Veeam B
 ## Exemple d'utilisation
 
 ```powershell
-.\MVM_BackupCopySessions.ps1 -RPO 24
+.\MVM_CopySessions.ps1 -RPO 24

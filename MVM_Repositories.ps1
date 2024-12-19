@@ -3,40 +3,65 @@
 # Version: 1.0.1
 # Creation Date: 2024-11-29
 # Last Update: 2024-12-02
-# GitHub Repository: https://github.com/ATHEO-TDS/MyVeeamMonitoring
+# GitHub Repository: https://github.com/TiagoDSLV/MyVeeamMonitoring
+# ====================================================================
+# Author: Tiago DA SILVA - ATHEO INGENIERIE
+# Version: 1.0.1
+# Creation Date: 2024-11-29
+# Last Update: 2024-12-02
+# GitHub Repository: https://github.com/TiagoDSLV/MyVeeamMonitoring
 # ====================================================================
 #
+# Description:
+# This PowerShell script monitors the storage usage of repositories in 
+# Veeam Backup & Replication (VBR). It calculates the used, free, and total
+# storage on repositories and compares the storage usage to specified 
+# thresholds (Warning and Critical). The script provides an alert if any 
+# repository exceeds the defined thresholds, with a custom message 
+# detailing the status of each repository.
 #
-# Evolution : ajout des repo SOBR
+# Parameters:
+# - Warning: Defines the storage usage percentage at which a warning will be triggered. Default is 80%.
+# - Critical: Defines the storage usage percentage at which a critical alert will be triggered. Default is 90%.
+# - ExcludedTargets: A comma-separated list of repository names to exclude from monitoring. 
+#
+# Returns:
+#   - OK: If all repositories are below the defined thresholds.
+#   - Warning: If one or more repositories exceed the Warning threshold but not the Critical threshold.
+#   - Critical: If one or more repositories exceed the Critical threshold.
+#   - Unknown: If no repositories are found or an error occurs.
+#
 # ====================================================================
 
 #region Parameters
 param (
-    [int]$Warning = 80,
-    [int]$Critical = 90,
-    [string]$ExcludedRepos = ""
+    [int]$Warning = 80,   # Warning threshold for storage usage percentage
+    [int]$Critical = 90,  # Critical threshold for storage usage percentage
+    [string]$ExcludedTargets = ""  # List of repository names to exclude from monitoring
 )
 #endregion
 
 #region Functions
-# Functions for exit codes (OK, Warning, Critical, Unknown)
+# Functions for returning exit codes (OK, Warning, Critical, Unknown)
 function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
 function Exit-Warning { param ([string]$message) if ($message) { Write-Host "WARNING - $message" } exit 1 }
 function Exit-Critical { param ([string]$message) if ($message) { Write-Host "CRITICAL - $message" } exit 2 }
 function Exit-Unknown { param ([string]$message) if ($message) { Write-Host "UNKNOWN - $message" } exit 3 }
 
-# Ensures connection to the VBR server
+# Function to connect to the VBR server
 function Connect-VBRServerIfNeeded {
-    $vbrServer = "localhost"
-    $credentialPath = ".\scripts\MyVeeamMonitoring\key.xml"
+    $vbrServer = "localhost"  # Veeam Backup & Replication server address
+    $credentialPath = ".\scripts\MyVeeamMonitoring\key.xml"  # Path to credentials file for connection
     
+    # Check if a connection to the VBR server is already established
     $OpenConnection = (Get-VBRServerSession).Server
     
     if ($OpenConnection -ne $vbrServer) {
+        # Disconnect existing session if connected to a different server
         Disconnect-VBRServer
         
         if (Test-Path $credentialPath) {
-            # Load credentials from the XML file
+            # Load credentials from XML file
             try {
                 $credential = Import-Clixml -Path $credentialPath
                 Connect-VBRServer -server $vbrServer -Credential $credential -ErrorAction Stop
@@ -44,7 +69,7 @@ function Connect-VBRServerIfNeeded {
                 Exit-Critical "Unable to load credentials from the XML file."
             }
         } else {
-            # Connect without credentials
+            # Connect without credentials if file does not exist
             try {
                 Connect-VBRServer -server $vbrServer -ErrorAction Stop
             } Catch {
@@ -54,7 +79,7 @@ function Connect-VBRServerIfNeeded {
     }
 }
 
-# Retrieves all repository informations
+# Retrieves all repository information
 Function Get-VBRRepoInfo {
     [CmdletBinding()]
     param (
@@ -63,8 +88,8 @@ Function Get-VBRRepoInfo {
     )
 
     BEGIN {
-        $outputAry = @()
-        $repAry = @()
+        $outputAry = @()  # Initialize an array for output data
+        $repAry = @()  # Initialize an array to track processed repos
     }
 
     PROCESS {
@@ -86,12 +111,12 @@ Function Get-VBRRepoInfo {
 
             # Prepare the output object
             $objoutput = [PSCustomObject]@{
-                Repository      = $obj.Name
-                StorageFree     = $StorageFree
-                StorageUsed     = $StorageUsed
-                StorageTotal    = $StorageTotal
-                FreePercentage  = $FreePercentage
-                UsedPercentage  = $UsedPercentage
+                Repository       = $obj.Name  # Repository name
+                StorageFree     = $StorageFree  # Free storage in GB
+                StorageUsed     = $StorageUsed  # Used storage in GB
+                StorageTotal    = $StorageTotal  # Total storage in GB
+                FreePercentage  = $FreePercentage  # Free storage percentage
+                UsedPercentage  = $UsedPercentage  # Used storage percentage
             }
 
             # Add the datastore name to the list and the result to the output array
@@ -114,7 +139,7 @@ if ($Critical -le $Warning) {
 }
 # Validate that the parameters are non-empty if they are provided
 if ($ExcludedRepos -and $ExcludedRepos -notmatch "^[\w\.\,\s\*\-_]*$") {
-    Exit-Critical "Invalid parameter: 'ExcludedTargets' contains invalid characters. Please provide a comma-separated list of VM names."
+    Exit-Critical "Invalid parameter: 'ExcludedRepos' contains invalid characters. Please provide a comma-separated list of repository names."
   }
 #endregion
 
@@ -123,12 +148,12 @@ Connect-VBRServerIfNeeded
 #endregion
 
 #region Variables
-$ExcludedReposArray = $ExcludedRepos -split ','
-$outputStats = @()
+$ExcludedReposArray = $ExcludedRepos -split ',' # Split the ExcludedRepos string into an array
+$outputStats = @()  # Initialize an array to store the output statistics
 #endregion
 
 try {
-    # Get all Repositories
+    #  Retrieve all repositories information
     $repoList = Get-VBRBackupRepository | Get-VBRRepoInfo | Select-Object @{Name='Name'; Expression={$_.Target}},
     @{Name='UsedStorageGB'; Expression={$_.StorageUsed}},
     @{Name='FreeStorageGB'; Expression={$_.StorageFree}},
@@ -141,22 +166,24 @@ try {
         Else { "OK" }
     }}
 
+    # Create a regular expression to exclude specified repo from monitoring
     $ExcludedRepos_regex = ('(?i)^(' + (($ExcludedReposArray | ForEach-Object {[regex]::escape($_)}) -join "|") + ')$') -replace "\\\*", ".*"
     $filteredRepos= $repoList | Where-Object {$_.Name -notmatch $ExcludedRepos_regex}
 
     If ($filteredRepos.count -gt 0) {
 
+        # Separate critical and warning  repos
         $criticalRepos = @($filteredRepos | Where-Object {$_.Status -eq "Critical"})
         $warningRepos = @($filteredRepos | Where-Object {$_.Status -eq "Warning"})
     
         foreach ($repo in $filteredRepos) {
-            $name = $repo.Name -replace ' ', '_'
-            $totalGB = $repo.TotalStorageGB
-            $freeGB = $repo.FreeStorageGB
-            $usedGB = $totalGB - $freeGB 
-            $prctUsed = $repo.UsedStoragePercent
+            $name = $repo.Name -replace ' ', '_'  # Replace spaces in the name with underscores
+            $totalGB = $repo.TotalStorageGB  # Total storage in GB
+            $freeGB = $repo.FreeStorageGB # Free storage in GB
+            $usedGB = $totalGB - $freeGB  # Used storage in GB
+            $prctUsed = $repo.UsedStoragePercent  # Used storage percentage
     
-            # Convert Warning and Critical thresholds to percentages of the total GB
+            # Convert Warning and Critical thresholds to absolute storage in GB
             $warningGB = [Math]::Round(($Warning / 100) * $totalGB, 2)
             $criticalGB = [Math]::Round(($Critical / 100) * $totalGB, 2)
             
@@ -167,15 +194,16 @@ try {
             # Append to the output array
             $outputStats += "$repoStats $prctUsedStats"
         }
-    
+
+        # Prepare output for critical and warning repos
         $outputCritical = ($criticalRepos | Sort-Object { $_.FreeStoragePercent } | ForEach-Object {
             "$($_.Name) - Used: $($_.UsedStoragePercent)% ($($_.FreeStorageGB)GB / $($_.TotalStorageGB)GB)"
         }) -join ", "
-        
         $outputWarning = ($warningRepos | Sort-Object { $_.FreeStoragePercent } | ForEach-Object {
             "$($_.Name) - Used: $($_.UsedStoragePercent)% ($($_.FreeStorageGB)GB / $($_.TotalStorageGB)GB)"
         }) -join ", "
         
+        # Exit with appropriate status based on critical and warning repos
         If ($criticalRepos.count -gt 0) {
             $criticalMessage = If ($criticalRepos.count -eq 1) { 
                 "$($criticalRepos.count) repository is in critical state" 
@@ -197,8 +225,8 @@ try {
         }
     
         }Else{
-            Exit-Unknown "No repository was found."
+            Exit-Unknown "No repository was found"
         }
-}Catch{
-    Exit-Critical "An error occurred: $_"
+} Catch {
+    Exit-Critical "An error occurred: $($_.Exception.Message)"
 }

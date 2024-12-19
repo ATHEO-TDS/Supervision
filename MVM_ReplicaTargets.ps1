@@ -3,39 +3,59 @@
 # Version: 1.0.1
 # Creation Date: 2024-11-29
 # Last Update: 2024-12-02
-# GitHub Repository: https://github.com/ATHEO-TDS/MyVeeamMonitoring
+# GitHub Repository: https://github.com/TiagoDSLV/MyVeeamMonitoring
 # ====================================================================
 #
+# Description:
+# This PowerShell script monitors the storage usage of replica targets in 
+# Veeam Backup & Replication (VBR). It calculates the used, free, and total
+# storage on replica targets and compares the storage usage to specified 
+# thresholds (Warning and Critical). The script provides an alert if any 
+# replica target exceeds the defined thresholds, with a custom message 
+# detailing the status of each target.
+#
+# Parameters:
+# - Warning: Defines the storage usage percentage at which a warning will be triggered. - Default is 80%.
+# - Critical: Defines the storage usage percentage at which a critical alert will be triggered - Default is 90 %.
+# - ExcludedTargets: A comma-separated list of target names to exclude from monitoring. 
+#
+# Returns:
+#   - OK: If all replica targets are below the defined thresholds.
+#   - Warning: If one or more replica targets exceed the Warning threshold but not the Critical threshold.
+#   - Critical: If one or more replica targets exceed the Critical threshold.
+#   - Unknown: If no replica targets are found or an error occurs.
 #
 # ====================================================================
 
 #region Parameters
 param (
-    [int]$Warning = 80,
-    [int]$Critical = 90,
-    [string]$ExcludedTargets = ""
+    [int]$Warning = 80,   # Warning threshold for storage usage percentage
+    [int]$Critical = 90,  # Critical threshold for storage usage percentage
+    [string]$ExcludedTargets = ""  # List of Target names to exclude from monitoring
 )
 #endregion
 
 #region Functions
-# Functions for exit codes (OK, Warning, Critical, Unknown)
+# Functions for returning exit codes (OK, Warning, Critical, Unknown)
 function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
 function Exit-Warning { param ([string]$message) if ($message) { Write-Host "WARNING - $message" } exit 1 }
 function Exit-Critical { param ([string]$message) if ($message) { Write-Host "CRITICAL - $message" } exit 2 }
 function Exit-Unknown { param ([string]$message) if ($message) { Write-Host "UNKNOWN - $message" } exit 3 }
 
-# Ensures connection to the VBR server
+# Function to connect to the VBR server
 function Connect-VBRServerIfNeeded {
-    $vbrServer = "localhost"
-    $credentialPath = ".\scripts\MyVeeamMonitoring\key.xml"
+    $vbrServer = "localhost"  # Veeam Backup & Replication server address
+    $credentialPath = ".\scripts\MyVeeamMonitoring\key.xml"  # Path to credentials file for connection
     
+    # Check if a connection to the VBR server is already established
     $OpenConnection = (Get-VBRServerSession).Server
     
     if ($OpenConnection -ne $vbrServer) {
+        # Disconnect existing session if connected to a different server
         Disconnect-VBRServer
         
         if (Test-Path $credentialPath) {
-            # Load credentials from the XML file
+            # Load credentials from XML file
             try {
                 $credential = Import-Clixml -Path $credentialPath
                 Connect-VBRServer -server $vbrServer -Credential $credential -ErrorAction Stop
@@ -43,7 +63,7 @@ function Connect-VBRServerIfNeeded {
                 Exit-Critical "Unable to load credentials from the XML file."
             }
         } else {
-            # Connect without credentials
+            # Connect without credentials if file does not exist
             try {
                 Connect-VBRServer -server $vbrServer -ErrorAction Stop
             } Catch {
@@ -53,7 +73,7 @@ function Connect-VBRServerIfNeeded {
     }
 }
 
-# Retrieves all replica target informations
+# Retrieves all replica target information
 Function Get-VBRReplicaTarget {
     [CmdletBinding()]
     param (
@@ -62,8 +82,8 @@ Function Get-VBRReplicaTarget {
     )
 
     BEGIN {
-        $outputAry = @()
-        $dsAry = @()
+        $outputAry = @()  # Initialize an array for output data
+        $dsAry = @()  # Initialize an array to track processed datastores
     }
 
     PROCESS {
@@ -74,22 +94,22 @@ Function Get-VBRReplicaTarget {
             }
 
             # Retrieve the datastore and calculate storage usage
-            $esxi = $obj.GetTargetHost()
-            $dtstr = $esxi | Find-VBRViDatastore -Name $obj.ViReplicaTargetOptions.DatastoreName
-            $StorageFree = [Math]::Round([Decimal]$dtstr.FreeSpace / 1GB, 2)
-            $StorageTotal = [Math]::Round([Decimal]$dtstr.Capacity / 1GB, 2)
-            $StorageUsed = $StorageTotal - $StorageFree
-            $FreePercentage = [Math]::Round(($dtstr.FreeSpace / $dtstr.Capacity) * 100)
-            $UsedPercentage = 100 - $FreePercentage
+            $esxi = $obj.GetTargetHost()  # Get the ESXi host
+            $dtstr = $esxi | Find-VBRViDatastore -Name $obj.ViReplicaTargetOptions.DatastoreName  # Find the datastore by name
+            $StorageFree = [Math]::Round([Decimal]$dtstr.FreeSpace / 1GB, 2)  # Calculate free storage in GB
+            $StorageTotal = [Math]::Round([Decimal]$dtstr.Capacity / 1GB, 2)  # Calculate total storage
+            $StorageUsed = $StorageTotal - $StorageFree  # Calculate used storage in GB
+            $FreePercentage = [Math]::Round(($dtstr.FreeSpace / $dtstr.Capacity) * 100)  # Calculate free storage percentage
+            $UsedPercentage = 100 - $FreePercentage  # Calculate used storage percentage
 
             # Prepare the output object
             $objoutput = [PSCustomObject]@{
-                Datastore       = $obj.ViReplicaTargetOptions.DatastoreName
-                StorageFree     = $StorageFree
-                StorageUsed     = $StorageUsed
-                StorageTotal    = $StorageTotal
-                FreePercentage  = $FreePercentage
-                UsedPercentage  = $UsedPercentage
+                Datastore       = $obj.ViReplicaTargetOptions.DatastoreName  # Datastore name
+                StorageFree     = $StorageFree  # Free storage in GB
+                StorageUsed     = $StorageUsed  # Used storage in GB
+                StorageTotal    = $StorageTotal  # Total storage in GB
+                FreePercentage  = $FreePercentage  # Free storage percentage
+                UsedPercentage  = $UsedPercentage  # Used storage percentage
             }
 
             # Add the datastore name to the list and the result to the output array
@@ -112,7 +132,7 @@ if ($Critical -le $Warning) {
 }
 # Validate that the parameters are non-empty if they are provided
 if ($ExcludedTargets -and $ExcludedTargets -notmatch "^[\w\.\,\s\*\-_]*$") {
-    Exit-Critical "Invalid parameter: 'ExcludedTargets' contains invalid characters. Please provide a comma-separated list of VM names."
+    Exit-Critical "Invalid parameter: 'ExcludedTargets' contains invalid characters. Please provide a comma-separated list of target names."
   }
 #endregion
 
@@ -121,12 +141,12 @@ Connect-VBRServerIfNeeded
 #endregion
 
 #region Variables
-$ExcludedTargetsArray = $ExcludedTargets -split ','
-$outputStats = @()
+$ExcludedTargetsArray = $ExcludedTargets -split ','  # Split the ExcludedTargets string into an array
+$outputStats = @()  # Initialize an array to store the output statistics
 #endregion
 
 try {
-    # Retrieve all replica target informations
+    # Retrieve all replica target information
     $repTargets = Get-VBRJob -WarningAction SilentlyContinue | 
     Where-Object {$_.JobType -eq "Replica"} | 
     Get-VBRReplicaTarget | 
@@ -142,21 +162,23 @@ try {
                     else { "OK" }
                     }}
 
+    # Create a regular expression to exclude specified target from monitoring
     $ExcludedTargets_regex = ('(?i)^(' + (($ExcludedTargetsArray | ForEach-Object {[regex]::escape($_)}) -join "|") + ')$') -replace "\\\*", ".*"
     $filteredrepTargets = $repTargets | Where-Object {$_.Name -notmatch $ExcludedTargets_regex}
 
     If ($filteredrepTargets.count -gt 0) {
 
+        # Separate critical and warning targets
         $criticalRepTargets = @($filteredrepTargets | Where-Object {$_.Status -eq "Critical"})
         $warningRepTargets = @($filteredrepTargets | Where-Object {$_.Status -eq "Warning"})
 
         foreach ($target in $filteredrepTargets) {
-            $name = $target.Name -replace ' ', '_'
-            $totalGB = $target.TotalStorageGB
-            $usedGB = $target.UsedStorageGB
-            $prctUsed = $target.UsedStoragePercent
+            $name = $target.Name -replace ' ', '_'  # Replace spaces in the name with underscores
+            $totalGB = $target.TotalStorageGB  # Total storage in GB
+            $usedGB = $target.UsedStorageGB  # Used storage in GB
+            $prctUsed = $target.UsedStoragePercent  # Used storage percentage
         
-            # Convert Warning and Critical thresholds to percentages of the total GB
+            # Convert Warning and Critical thresholds to absolute storage in GB
             $warningGB = [Math]::Round(($Warning / 100) * $totalGB, 2)
             $criticalGB = [Math]::Round(($Critical / 100) * $totalGB, 2)
             
@@ -168,24 +190,25 @@ try {
             $outputStats += "$targetStats $prctUsedStats"
         }
 
+    # Prepare output for critical and warning targets
         $outputCritical = ($criticalRepTargets | Sort-Object { $_.FreeStoragePercent } | ForEach-Object {
             "$($_.Name) - Used: $($_.UsedStoragePercent)% ($($_.FreeStorageGB)GB / $($_.TotalStorageGB)GB)"
         }) -join ", "
-        
         $outputWarning = ($warningRepTargets | Sort-Object { $_.FreeStoragePercent } | ForEach-Object {
             "$($_.Name) - Used: $($_.UsedStoragePercent)% ($($_.FreeStorageGB)GB / $($_.TotalStorageGB)GB)"
         }) -join ", "
 
+    # Exit with appropriate status based on critical and warning targets
         If ($criticalRepTargets.count -gt 0) {
-            Exit-Critical "$($criticalRepTargets.count) replica target(s) are in critical state : $outputCritical|$outputStats"
-        }ElseIf ($warningRepTargets.count -gt 0) {
-            Exit-Warning "$($warningRepTargets.count) replica target(s) are in warning state : $outputWarning|$outputStats"
-        }Else{
-            Exit-OK "All replica target(s) are in ok state|$outputStats"
+        Exit-Critical "$($criticalRepTargets.count) critical target(s): $outputCritical|$outputStats"
+    } ElseIf ($warningRepTargets.count -gt 0) {
+        Exit-Warning "$($warningRepTargets.count) warning target(s): $outputWarning|$outputStats"
+    } Else {
+        Exit-OK "All targets are OK|$outputStats"
         }
-    }Else{
-        Exit-Unknown "No replica target was found"
+    } Else {
+        Exit-Unknown "No replica targets found"
     }
-}Catch{
-    Exit-Critical "An error occurred: $_"
+} Catch {
+    Exit-Critical "An error occurred: $($_.Exception.Message)"
 }

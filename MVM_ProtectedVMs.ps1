@@ -3,56 +3,63 @@
 # Version: 1.0.1
 # Creation Date: 2024-11-29
 # Last Update: 2024-12-02
-# GitHub Repository: https://github.com/ATHEO-TDS/MyVeeamMonitoring
+# GitHub Repository: https://github.com/TiagoDSLV/MyVeeamMonitoring
 # ====================================================================
 #
-# Ce script permet de surveiller l'état de protection des machines virtuelles (VM) 
-# dans Veeam Backup & Replication. En comparant la liste des VM dont la sauvegarde est en success
-# avec la liste des VMs présente sur le vCenter
+# DESCRIPTION:
+# This PowerShell script monitors the protection status of virtual machines (VMs)
+# in Veeam Backup & Replication by comparing the successful backups with the VMs
+# present in the vCenter. It identifies VMs that are unprotected or in a warning state.
 #
-# L'objectif est de garantir que toutes les VMs sont correctement protégées par des 
-# sauvegardes et d'envoyer des alertes aux administrateurs via un système de supervision 
-# si des problèmes sont détectés.
+# PARAMETERS:
+# - RPO: Defines the backup analysis period (in hours). Default is 24 hours.
+# - ExcludedVMs: A comma-separated list of VM names to exclude. You can use the '*' wildcard for partial matches.
+# - ExcludedFolders: A comma-separated list of folders to exclude. You can use the '*' wildcard for partial matches.
+# - ExcludedTags: A comma-separated list of tags to exclude. You can use the '*' wildcard for partial matches.
+# - ExcludedClusters: A comma-separated list of clusters to exclude. You can use the '*' wildcard for partial matches.
+# - ExcludedDataCenters: A comma-separated list of data centers to exclude. You can use the '*' wildcard for partial matches.
 #
-# Le script offre également la possibilité d'exclure certaines VMs, dossiers, tags, 
-# clusters ou centres de données de l'analyse, pour une personnalisation en fonction 
-# des besoins de l'environnement.
-#
-# Veuillez consulter le dépôt GitHub pour plus de détails et de documentation.
+# RETURNS:
+# - Critical: At least one VM is unprotected (failed or missing backup).
+# - Warning: At least one VM is in a warning state.
+# - OK: All VMs are protected.
+# - Unknown: An error occurred while retrieving backup session data.
 #
 # ====================================================================
 
 
 #region Parameters
 param (
-    [string]$ExcludedVMs = "",
-    [string]$ExcludedFolders = "",
-    [string]$ExcludedTags = "",
-    [string]$ExcludedClusters = "",
-    [string]$ExcludedDataCenters = "",
-    [int]$RPO = 24
+    [string]$ExcludedVMs = "",   # VMs to exclude from monitoring
+    [string]$ExcludedFolders = "",  # Folders to exclude from monitoring
+    [string]$ExcludedTags = "",   # Tags to exclude from monitoring
+    [string]$ExcludedClusters = "",  # Clusters to exclude from monitoring
+    [string]$ExcludedDataCenters = "",  # Data centers to exclude from monitoring
+    [int]$RPO = 24  # Recovery Point Objective (hours)
 )
 #endregion
 
 #region Functions
-# Functions for exit codes (OK, Warning, Critical, Unknown)
+# Functions for returning exit codes (OK, Warning, Critical, Unknown)
 function Exit-OK { param ([string]$message) if ($message) { Write-Host "OK - $message" } exit 0 }
 function Exit-Warning { param ([string]$message) if ($message) { Write-Host "WARNING - $message" } exit 1 }
 function Exit-Critical { param ([string]$message) if ($message) { Write-Host "CRITICAL - $message" } exit 2 }
 function Exit-Unknown { param ([string]$message) if ($message) { Write-Host "UNKNOWN - $message" } exit 3 }
 
-# Ensures connection to the VBR server
+# Function to connect to the VBR server
 function Connect-VBRServerIfNeeded {
-    $vbrServer = "localhost"
-    $credentialPath = ".\scripts\MyVeeamMonitoring\key.xml"
+    $vbrServer = "localhost"  # Veeam Backup & Replication server address
+    $credentialPath = ".\scripts\MyVeeamMonitoring\key.xml"  # Path to credentials file for connection
     
+    # Check if a connection to the VBR server is already established
     $OpenConnection = (Get-VBRServerSession).Server
     
     if ($OpenConnection -ne $vbrServer) {
+        # Disconnect existing session if connected to a different server
         Disconnect-VBRServer
         
         if (Test-Path $credentialPath) {
-            # Load credentials from the XML file
+            # Load credentials from XML file
             try {
                 $credential = Import-Clixml -Path $credentialPath
                 Connect-VBRServer -server $vbrServer -Credential $credential -ErrorAction Stop
@@ -60,7 +67,7 @@ function Connect-VBRServerIfNeeded {
                 Exit-Critical "Unable to load credentials from the XML file."
             }
         } else {
-            # Connect without credentials
+            # Connect without credentials if file does not exist
             try {
                 Connect-VBRServer -server $vbrServer -ErrorAction Stop
             } Catch {
@@ -72,11 +79,12 @@ function Connect-VBRServerIfNeeded {
 #endregion
 
 #region Validate Parameters
+# Validate that the RPO parameter is a positive integer
 if ($RPO -lt 1) {
     Exit-Critical "Invalid parameter: 'RPO' must be greater than or equal to 1 hour. Please provide a valid value."
 }
 
-# Validate that the parameters are non-empty if they are provided
+# Validate that the exclusion parameters contain only valid characters
 if ($ExcludedVMs -and $ExcludedVMs -notmatch "^[\w\.\,\s\*\-_]*$") {
     Exit-Critical "Invalid parameter: 'ExcludedVMs' contains invalid characters. Please provide a comma-separated list of VM names."
 }
@@ -99,26 +107,30 @@ Connect-VBRServerIfNeeded
 #endregion
 
 #region Variables
+# Arrays to hold the exclusion lists and backup results
 $excludedVMsArray = $ExcludedVMs -split ','
 $excludedFoldersArray = $ExcludedFolders -split ','
 $excludedTagsArray = $ExcludedTags -split ','
 $excludedClustersArray = $ExcludedClusters -split ','
 $excludedDCsArray = $ExcludedDataCenters -split ','
-$vmTagMapping = @{}
-$backupResults = @()
-$vmList = @()
-$allVMsStatuses = @()
+
+$vmTagMapping = @{}  # Dictionary to map VM tags to VM IDs
+$backupResults = @()  # Array to hold backup results
+$vmList = @()  # Array to hold VM details
+$allVMsStatuses = @()  # Array to hold statuses of all VMs
 #endregion
 
 #region Data Collection
-# Fetch VMs and their tags
+# Retrieve all virtual machines (VMs) and their associated tags
 $vms = Find-VBRViEntity | Where-Object { $_.Type -eq "Vm" }
 $tags = Find-VBRViEntity -Tags | Where-Object { $_.Type -eq "Vm" }
 
+# Map tags to VM IDs
 foreach ($tag in $tags) {
     $vmTagMapping[$tag.Id] = $tag.Path
 }
 
+# Create a list of VMs with details like Name, Path, Folder, and Tags
 foreach ($vm in $vms) {
     $vmList += [PSCustomObject]@{
         Name   = $vm.Name
@@ -128,14 +140,16 @@ foreach ($vm in $vms) {
     }
 }
 
-$Type = @("Backup")
-# Fetch backup sessions
+$Type = @("Backup")  # Define the backup job type
+# Retrieve backup sessions based on the specified RPO
 $backupSessions = [Veeam.Backup.DBManager.CDBManager]::Instance.BackupJobsSessions.GetAll() | 
     Where-Object {($_.EndTime -ge (Get-Date).AddHours(-$RPO) -or $_.CreationTime -ge (Get-Date).AddHours(-$RPO) -or $_.State -eq "Working") -and $_.JobType -in $Type}
 
+# Fetch task sessions for each backup session
 foreach ($session in $backupSessions) {
     $taskSessions = Get-VBRTaskSession -Session $session.Id
     foreach ($task in $taskSessions) {
+        # Store backup results
         $backupResults += [PSCustomObject]@{
             Name     = $task.Name
             Status   = $task.Status
@@ -145,9 +159,11 @@ foreach ($session in $backupSessions) {
     }
 }
 
+# Get the most recent backup results for each VM
 $latestBackupResults = $backupResults | Group-Object -Property Name | ForEach-Object { 
     $_.Group | Sort-Object -Property EndTime -Descending | Select-Object -First 1}
 
+# Compare VM list with backup results to determine status (Success, Warning, Missing)
 foreach ($vm in $vmList) {
         $statusObject = $latestBackupResults | Where-Object { $_.Name -eq $vm.Name }
         $status = if ($statusObject) { $statusObject.Status } else { "Missing" }
@@ -159,15 +175,17 @@ foreach ($vm in $vmList) {
             Tags   = $vm.Tags
             Status = $status
         }
-    
 }
-
+#endregion
+#region Exclusion Logic
+# Create regex patterns to exclude VMs, folders, tags, clusters, and data centers
 $excludeVM_regex = ('(?i)^(' + (($excludedVMsArray | ForEach-Object {[regex]::escape($_)}) -join "|") + ')$') -replace "\\\*", ".*"
 $excludeFolder_regex = ('(?i)^(' + (($excludedFoldersArray | ForEach-Object {[regex]::escape($_)}) -join "|") + ')$') -replace "\\\*", ".*"
 $excludeTag_regex = ('(?i)^(' + (($excludedTagsArray | ForEach-Object {[regex]::escape($_)}) -join "|") + ')$') -replace "\\\*", ".*"
 $excludeCluster_regex = ('(?i)^(' + (($excludedClustersArray | ForEach-Object {[regex]::escape($_)}) -join "|") + ')$') -replace "\\\*", ".*"
 $excludeDC_regex = ('(?i)^(' + (($excludedDCsArray | ForEach-Object {[regex]::escape($_)}) -join "|") + ')$') -replace "\\\*", ".*"
 
+# Filter out excluded VMs and other items using the regex patterns
 $filteredVMsStatuses = $allVMsStatuses | Where-Object {
     ($_.Name -notmatch $excludeVM_regex) -and
     ($_.Folder -notmatch $excludeFolder_regex) -and
@@ -175,11 +193,15 @@ $filteredVMsStatuses = $allVMsStatuses | Where-Object {
     ($_.Path.Split("\")[2] -notmatch $excludeCluster_regex) -and
     ($_.Path.Split("\")[1] -notmatch $excludeDC_regex)
 }
+#endregion
 
+#region Status Evaluation
+# Classify VMs into success, warning, and missing states
 $successVMs = $filteredVMsStatuses | Where-Object {$_.Status -eq "Success"}
 $warnVMs = $filteredVMsStatuses | Where-Object {$_.Status -eq "Warning"}
 $missingVMs = $filteredVMsStatuses | Where-Object {$_.Status -in @("Failed", "Missing")}
 
+# Count and output results based on VM statuses
 $countVMsStatuses = @{
     WarningVMs     = $warnVMs.Count
     ProtectedVMs   = $successVMs.Count
@@ -191,6 +213,7 @@ $outputWarn = ($warnVMs.Name) -join ","
 
 $statisticsMessage = "'ProtectedVms'=$($countVMsStatuses.ProtectedVMs) 'WarningVMs'=$($countVMsStatuses.WarningVMs) 'UnprotectedVMs'=$($countVMsStatuses.UnprotectedVMs)"
 
+# Exit with appropriate status depending on VM statuses
 if ($countVMsStatuses.UnprotectedVMs -gt 0) {
     Exit-Critical "$($countVMsStatuses.UnprotectedVMs) Unprotected VM(s): $outputCrit|$statisticsMessage"
 } elseif ($countVMsStatuses.WarningVMs -gt 0) {
@@ -198,3 +221,4 @@ if ($countVMsStatuses.UnprotectedVMs -gt 0) {
 } else {
     Exit-Ok "All VMs are protected ($($countVMsStatuses.ProtectedVMs))|$statisticsMessage"
 }
+#endregion
