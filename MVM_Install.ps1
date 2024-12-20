@@ -156,6 +156,7 @@ $rawContentURL = "$rawContentURL/$Branch/$FilePath"
 $RemoteIni = "remote = $rawContentURL"
 Add-Content -Path $iniFilePath -Value $RemoteIni # Add the new line to the end of the file
 $iniContent = $iniContent -replace "CheckExternalScripts = disabled", "CheckExternalScripts = enabled"
+$iniContent = $iniContent -replace "timeout = 30", "timeout = 60"
 $iniContent = $iniContent -replace "allow arguments = false", "allow arguments = true"
 $iniContent = $iniContent -replace "automatic updates = disabled", "automatic updates = true"
 $iniContent = $iniContent -replace "automatic restart = disabled", "automatic restart = true"

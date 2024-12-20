@@ -1,14 +1,7 @@
-# ====================================================================
 # Author: Tiago DA SILVA - ATHEO INGENIERIE
-# Version: 1.0.1
+# Version: 1.0.0
 # Creation Date: 2024-11-29
-# Last Update: 2024-12-02
-# GitHub Repository: https://github.com/TiagoDSLV/MyVeeamMonitoring
-# ====================================================================
-# Author: Tiago DA SILVA - ATHEO INGENIERIE
-# Version: 1.0.1
-# Creation Date: 2024-11-29
-# Last Update: 2024-12-02
+# Last Update: 2024-12-20
 # GitHub Repository: https://github.com/TiagoDSLV/MyVeeamMonitoring
 # ====================================================================
 #
@@ -37,7 +30,7 @@
 param (
     [int]$Warning = 80,   # Warning threshold for storage usage percentage
     [int]$Critical = 90,  # Critical threshold for storage usage percentage
-    [string]$ExcludedTargets = ""  # List of repository names to exclude from monitoring
+    [string]$ExcludedRepos = ""  # List of repository names to exclude from monitoring
 )
 #endregion
 
@@ -154,7 +147,7 @@ $outputStats = @()  # Initialize an array to store the output statistics
 
 try {
     #  Retrieve all repositories information
-    $repoList = Get-VBRBackupRepository | Get-VBRRepoInfo | Select-Object @{Name='Name'; Expression={$_.Target}},
+    $repoList = Get-VBRBackupRepository | Get-VBRRepoInfo | Select-Object @{Name='Name'; Expression={$_.Repository}},
     @{Name='UsedStorageGB'; Expression={$_.StorageUsed}},
     @{Name='FreeStorageGB'; Expression={$_.StorageFree}},
     @{Name='TotalStorageGB'; Expression={$_.StorageTotal}},
