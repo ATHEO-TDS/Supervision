@@ -8,13 +8,13 @@
 #
 # DESCRIPTION:
 # This PowerShell script automates the process of downloading, installing, and configuring NSClient.
-# It also retrieves scripts and .ini files from the MyVeeamMonitoring GitHub repository.
+# It also retrieves files from the MyVeeamMonitoring GitHub repository.
 # The script handles the configuration of authentication if needed for running scripts.
 # Additionally, it sets up a scheduled task to run the update script daily to ensure MyVeeamMonitoring scripts remain updated.
 #
 # PARAMETERS:
 # - InstallDir: Specifies the directory where NSClient will be installed - Default is "C:\Program Files\snclient". 
-#                This directory is where the software and related files (e.g., .ini files, scripts) will be downloaded and stored.
+#                This directory is where the software and related files will be downloaded and stored.
 #
 # - AllowedHosts: Defines the IP addresses permitted to send NRPE requests to the VBR server. 
 #                 This parameter should be an IP address or "localhost" (default: "127.0.0.1").
@@ -90,16 +90,9 @@ try {
 foreach ($File in $Files) {
     $FileURL = $File.download_url
 
-    # Determine output path based on file type
-    if ($File.name -match "\.ini$") {
-        # For .ini files, save directly to the installation directory
-        $IniFile = $File.name
-        $OutputPath = Join-Path -Path $InstallDir -ChildPath $IniFile
-    } else {
-        # For other files, save to the 'scripts' directory
-        $OutputPath = Join-Path -Path "$InstallDir\scripts\MyVeeamMonitoring" -ChildPath $File.name
-    }
-
+    # Destination path
+    $OutputPath = Join-Path -Path "$InstallDir\scripts\MyVeeamMonitoring" -ChildPath $File.name
+    
     # Ensure the parent directory exists before saving the file
     $ParentDir = Split-Path -Path $OutputPath -Parent
     if (-not (Test-Path -Path $ParentDir)) {
@@ -147,14 +140,39 @@ Write-Host "File downloaded successfully: $OutputFile"
 
 # Install snclient.msi using msiexec
 Write-Host "Starting installation of snclient.msi..."
-Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$OutputFile`" /l*V `"$LogFile`" /qn INCLUDES=`"$IniFile`" ALLOWEDHOSTS=`"$AllowedHosts`" WEBSERVER=0 WEBSERVERSSL=0 NRPESERVER=1" -Wait
+Start-Process -FilePath "msiexec.exe" -ArgumentList "/i `"$OutputFile`" /l*V `"$LogFile`" /qn ALLOWEDHOSTS=`"$AllowedHosts`" WEBSERVER=0 WEBSERVERSSL=0 NRPESERVER=1" -Wait
 Write-Host "Installation completed successfully, log files: $LogFile"
+
+# Update Ini File
+Write-Host "Updating Ini File..."
+$iniFilePath = "$InstallDir\snclient.ini" # Define the path to the .ini file
+$iniContent = Get-Content -Path $iniFilePath
+# Specify the branch and file path in the repository
+$Branch = "main"
+$FilePath = "MVM_SNClientConfig.ini"
+# Construct the raw content URL
+$rawContentURL = "$RepoURL" -replace "https://github.com/", "https://raw.githubusercontent.com/" -replace "/blob/", "/"
+$rawContentURL = "$rawContentURL/$Branch/$FilePath"
+$RemoteIni = "remote = $rawContentURL"
+Add-Content -Path $iniFilePath -Value $RemoteIni # Add the new line to the end of the file
+$iniContent = $iniContent -replace "CheckExternalScripts = disabled", "CheckExternalScripts = enabled"
+$iniContent = $iniContent -replace "allow arguments = false", "allow arguments = true"
+$iniContent = $iniContent -replace "automatic updates = disabled", "automatic updates = true"
+$iniContent = $iniContent -replace "automatic restart = disabled", "automatic restart = true"
+$iniContent = $iniContent -replace "update hours = 0-24", "update hours = 9-17"
+$iniContent = $iniContent -replace "update days = mon-sun", "update days = mon-fri"
+$iniContent = $iniContent -replace "update interval = 1h", "update interval = 24h"
+Set-Content -Path $iniFilePath -Value $iniContent
+Write-Host "Ini File updated."
+Write-Host "Restarting SNClient Service"
+Restart-Service -Name snclient
+Write-Host "SNClient Service restarted"
 
 ## Configure the scheduled task to update scripts
 $TaskName = "MVM - Update scripts"
 $ScriptPath = "$InstallDir\scripts\MyVeeamMonitoring\MVM_Update.ps1"
 $TriggerTime = "12:00:00"  # Time when the task will run daily
-$Description = "Scheduled Task to run the script which updates MVM Scripts and Ini File"
+$Description = "Scheduled Task to run the script which updates MyVeeamMonitoring"
 
 # Check if the task already exists
 if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {

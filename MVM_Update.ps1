@@ -94,13 +94,7 @@ try {
 foreach ($File in $Files) {
     $FileURL = $File.download_url  # Get the URL of the file to be downloaded
 
-    # Define output path based on file type
-    if ($File.name -match "\.ini$") {
-        $IniFile = $File.name
-        $OutputPath = Join-Path -Path $InstallDir -ChildPath $IniFile  # Destination for .ini files
-    } else {
-        $OutputPath = Join-Path -Path "$InstallDir\scripts\MyVeeamMonitoring" -ChildPath $File.name  # Destination for other files
-    }
+    $OutputPath = Join-Path -Path "$InstallDir\scripts\MyVeeamMonitoring" -ChildPath $File.name  # Destination path
 
     # Check if the file already exists
     if (Test-Path -Path $OutputPath) {
